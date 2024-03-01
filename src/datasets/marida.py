@@ -16,27 +16,29 @@ from torchgeo.datamodules.geo import NonGeoDataModule
 
 class MARIDA(NonGeoDataset):
     classes = [
-        "Marine Debris"
-        "Dense Sargassum"
-        "Sparse Sargassum"
-        "Natural Organic Material"
-        "Ship"
-        "Clouds"
-        "Marine Water"
-        "Sediment-Laden Water"
-        "Foam"
-        "Turbid Water"
-        "Shallow Water"
-        "Waves"
-        "Cloud Shadows"
-        "Wakes"
-        "Mixed Water"
+        "Background",
+        "Marine Debris",
+        "Dense Sargassum",
+        "Sparse Sargassum",
+        "Natural Organic Material",
+        "Ship",
+        "Clouds",
+        "Marine Water",
+        "Sediment-Laden Water",
+        "Foam",
+        "Turbid Water",
+        "Shallow Water",
+        "Waves",
+        "Cloud Shadows",
+        "Wakes",
+        "Mixed Water",
     ]
     confidences = ["High", "Moderate", "Low"]
     debris_existences = ["Very close", "Away", "No"]
 
     cmap = ListedColormap(
         np.array([
+            (0, 0, 0),
             (255, 0, 0),
             (0, 128, 0),
             (50, 205, 50),
@@ -205,8 +207,8 @@ class MARIDADataModule(NonGeoDataModule):
     def __init__(self, batch_size: int = 64, num_workers: int = 0, **kwargs) -> None:
         super().__init__(MARIDA, batch_size, num_workers, **kwargs)
         if "bands" in kwargs and kwargs["bands"] == "rgb":
-            self.mean = self.means[(3, 2, 1)]
-            self.std = self.stds[(3, 2, 1)]
+            self.mean = self.means[[3, 2, 1]]
+            self.std = self.stds[[3, 2, 1]]
         else:
             self.mean = self.means
             self.std = self.stds
