@@ -20,6 +20,29 @@ We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder us
 
 Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe.
 
+### Usage
+
+Clone the repo with submodules
+
+```
+git clone --recurse-submodules https://github.com/isaaccorley/hydro-foundation-model.git
+```
+
+This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
+
+To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/hydro/` folder.
+
+```bash
+cd Swin-Transformer
+bash hydro_pretrain.sh
+```
+
+To load the model and generate image embeddings see `embed.ipynb`. For now only image level embeddings are supported but intermediate layer embeddings will be added soon.
+
+### Evaluation
+
+We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
+
 ### Cite
 
 If you use our pretrained models in you work please cite the following:
