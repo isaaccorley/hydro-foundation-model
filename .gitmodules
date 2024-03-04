@@ -1,0 +1,4 @@
+[submodule "Swin-Transformer"]
+	path = Swin-Transformer
+	url = git@github.com:isaaccorley/Swin-Transformer.git
+	branch = hydro
