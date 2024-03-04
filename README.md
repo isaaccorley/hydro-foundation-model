@@ -1,6 +1,6 @@
 # Hydro -- A Foundation Model for Water in Satellite Imagery
 
-This repo started out as mostly /s and is a work in progress side project, but maybe something interesting will happen.
+This repo started out as mostly /s and is a work in progress side project, but maybe something useful or interesting will happen.
 
 ### Motivation
 
