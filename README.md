@@ -24,7 +24,7 @@ Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches cont
 
 Clone the repo with submodules
 
-```
+```bash
 git clone --recurse-submodules https://github.com/isaaccorley/hydro-foundation-model.git
 ```
 
@@ -37,11 +37,60 @@ cd Swin-Transformer
 bash hydro_pretrain.sh
 ```
 
-To load the model and generate image embeddings see `embed.ipynb`. For now only image level embeddings are supported but intermediate layer embeddings will be added soon.
+Loading a pretrained model as a classifier. Make sure you define MODEL.PRETRAINED as the path to your downloaded checkpoint on your config like below:
+
+```yaml
+MODEL:
+  TYPE: swinv2
+  NAME: hydro_simmim_pretrain
+  PRETRAINED: checkpoints/ckpt_epoch_130.pth```
+```
+
+Load the checkpoint as a classifier like so
+
+```python
+import torch
+from src.model import swin_v2
+
+config_path = "checkpoints/hydro_simmim_pretrain_swinv2_base_img256_window16_800ep.yaml"
+model, transforms, config = swin_v2(config_path)
+```
+
+Some helper methods are provided with the model for different use cases
+
+```python
+import torch
+
+# Reset the classifier head to your desired number of classes
+model.reset_classifier(num_classes=10)
+
+
+# Extract image level embeddings
+x = torch.randn(1, 12, 256, 256)
+x = transforms(x)
+model.forward_features(x)  # (1, 1024)
+
+# Extract intermediate feature maps
+x = torch.randn(1, 12, 256, 256)
+x = transforms(x)
+features = model.get_intermediate_layers(x, n=(0, 1, 2, 3, 4), reshape=True)
+for i, f in enumerate(features):
+    print(i, f.shape)
+
+"""
+0 torch.Size([1, 128, 64, 64])
+1 torch.Size([1, 256, 32, 32])
+2 torch.Size([1, 512, 16, 16])
+3 torch.Size([1, 1024, 8, 8])
+4 torch.Size([1, 1024, 8, 8])
+"""
+```
+
+An example notebook with this code is available at `embed.ipynb`.
 
 ### Evaluation
 
-We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
+We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo currently contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
 
 ### Cite
 
