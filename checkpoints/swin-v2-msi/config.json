@@ -1,0 +1,221 @@
+AMP_ENABLE: true
+AMP_OPT_LEVEL: ''
+AUG:
+  AUTO_AUGMENT: rand-m9-mstd0.5-inc1
+  COLOR_JITTER: 0.4
+  CUTMIX: 1.0
+  CUTMIX_MINMAX: null
+  MIXUP: 0.8
+  MIXUP_MODE: batch
+  MIXUP_PROB: 1.0
+  MIXUP_SWITCH_PROB: 0.5
+  RECOUNT: 1
+  REMODE: pixel
+  REPROB: 0.25
+BASE:
+- ''
+DATA:
+  BANDS: all
+  BATCH_SIZE: 64
+  CACHE_MODE: part
+  CHANNELS: 12
+  DATASET: imagenet
+  DATA_PATH: /workspace/storage/data/hydro/images/
+  IMG_SIZE: 256
+  INTERPOLATION: bicubic
+  MASK_PATCH_SIZE: 32
+  MASK_RATIO: 0.6
+  MEAN:
+  - 340.76769064
+  - 429.9430203
+  - 614.21682446
+  - 590.23569706
+  - 950.68368468
+  - 1792.46290469
+  - 2075.46795189
+  - 2218.94553375
+  - 2266.46036911
+  - 2246.0605464
+  - 1594.42694882
+  - 1009.32729131
+  NUM_WORKERS: 8
+  PIN_MEMORY: true
+  STD:
+  - 554.81258967
+  - 572.41639287
+  - 582.87945694
+  - 675.88746967
+  - 729.89827633
+  - 1096.01480586
+  - 1273.45393088
+  - 1365.45589904
+  - 1356.13789355
+  - 1302.3292881
+  - 1079.19066363
+  - 818.86747235
+  ZIP_MODE: false
+ENABLE_AMP: true
+EVAL_MODE: false
+FUSED_LAYERNORM: false
+FUSED_WINDOW_PROCESS: false
+LOCAL_RANK: 0
+MODEL:
+  DROP_PATH_RATE: 0.1
+  DROP_RATE: 0.0
+  IN_CHANS: 3
+  LABEL_SMOOTHING: 0.1
+  NAME: hydro_simmim_pretrain
+  NUM_CLASSES: 1000
+  PRETRAINED: Swin-Transformer/output/hydro_simmim_pretrain1/hydro_simmim_pretrain_swinv2_base_img256_window16_800ep/ckpt_epoch_670.pth
+  RESUME: ''
+  SIMMIM:
+    NORM_TARGET:
+      ENABLE: true
+      PATCH_SIZE: 47
+  SWIN:
+    APE: false
+    DEPTHS:
+    - 2
+    - 2
+    - 6
+    - 2
+    EMBED_DIM: 96
+    IN_CHANS: 3
+    MLP_RATIO: 4.0
+    NUM_HEADS:
+    - 3
+    - 6
+    - 12
+    - 24
+    PATCH_NORM: true
+    PATCH_SIZE: 4
+    QKV_BIAS: true
+    QK_SCALE: null
+    WINDOW_SIZE: 7
+  SWINV2:
+    APE: false
+    DEPTHS:
+    - 2
+    - 2
+    - 18
+    - 2
+    EMBED_DIM: 128
+    IN_CHANS: 12
+    MLP_RATIO: 4.0
+    NUM_HEADS:
+    - 4
+    - 8
+    - 16
+    - 32
+    PATCH_NORM: true
+    PATCH_SIZE: 4
+    PRETRAINED_WINDOW_SIZES:
+    - 0
+    - 0
+    - 0
+    - 0
+    QKV_BIAS: true
+    WINDOW_SIZE: 16
+  SWIN_MLP:
+    APE: false
+    DEPTHS:
+    - 2
+    - 2
+    - 6
+    - 2
+    EMBED_DIM: 96
+    IN_CHANS: 3
+    MLP_RATIO: 4.0
+    NUM_HEADS:
+    - 3
+    - 6
+    - 12
+    - 24
+    PATCH_NORM: true
+    PATCH_SIZE: 4
+    WINDOW_SIZE: 7
+  SWIN_MOE:
+    APE: false
+    AUX_LOSS_WEIGHT: 0.01
+    CAPACITY_FACTOR: 1.25
+    COSINE_ROUTER: false
+    COSINE_ROUTER_DIM: 256
+    COSINE_ROUTER_INIT_T: 0.5
+    DEPTHS:
+    - 2
+    - 2
+    - 6
+    - 2
+    EMBED_DIM: 96
+    GATE_NOISE: 1.0
+    INIT_STD: 0.02
+    IN_CHANS: 3
+    IS_GSHARD_LOSS: false
+    MLP_FC2_BIAS: true
+    MLP_RATIO: 4.0
+    MOE_BLOCKS:
+    - - -1
+    - - -1
+    - - -1
+    - - -1
+    MOE_DROP: 0.0
+    NORMALIZE_GATE: false
+    NUM_HEADS:
+    - 3
+    - 6
+    - 12
+    - 24
+    NUM_LOCAL_EXPERTS: 1
+    PATCH_NORM: true
+    PATCH_SIZE: 4
+    PRETRAINED_WINDOW_SIZES:
+    - 0
+    - 0
+    - 0
+    - 0
+    QKV_BIAS: true
+    QK_SCALE: null
+    TOP_VALUE: 1
+    USE_BPR: true
+    WINDOW_SIZE: 7
+  TYPE: swinv2
+OUTPUT: output/hydro_simmim_pretrain/hydro_simmim_pretrain_swinv2_base_img256_window16_800ep
+PRINT_FREQ: 100
+SAVE_FREQ: 5
+SEED: 0
+TAG: hydro_simmim_pretrain_swinv2_base_img256_window16_800ep
+TEST:
+  CROP: true
+  SEQUENTIAL: false
+  SHUFFLE: false
+THROUGHPUT_MODE: false
+TRAIN:
+  ACCUMULATION_STEPS: 1
+  AUTO_RESUME: true
+  BASE_LR: 2.5e-05
+  CLIP_GRAD: 5.0
+  EPOCHS: 800
+  LAYER_DECAY: 1.0
+  LR_SCHEDULER:
+    DECAY_EPOCHS: 30
+    DECAY_RATE: 0.1
+    GAMMA: 0.1
+    MULTISTEPS:
+    - 700
+    NAME: multistep
+    WARMUP_PREFIX: true
+  MIN_LR: 1.25e-06
+  MOE:
+    SAVE_MASTER: false
+  OPTIMIZER:
+    BETAS:
+    - 0.9
+    - 0.999
+    EPS: 1.0e-08
+    MOMENTUM: 0.9
+    NAME: adamw
+  START_EPOCH: 0
+  USE_CHECKPOINT: false
+  WARMUP_EPOCHS: 10
+  WARMUP_LR: 1.25e-07
+  WEIGHT_DECAY: 0.05

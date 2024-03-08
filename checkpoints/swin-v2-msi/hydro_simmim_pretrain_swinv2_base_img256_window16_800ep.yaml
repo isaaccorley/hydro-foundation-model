@@ -1,7 +1,7 @@
 MODEL:
   TYPE: swinv2
   NAME: hydro_simmim_pretrain
-  PRETRAINED: checkpoints/ckpt_epoch_130.pth
+  PRETRAINED: checkpoints/ckpt_epoch_799.pth
   DROP_PATH_RATE: 0.1
   SIMMIM:
     NORM_TARGET:
