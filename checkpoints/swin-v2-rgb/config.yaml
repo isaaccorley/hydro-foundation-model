@@ -1,7 +1,7 @@
 MODEL:
   TYPE: swinv2
-  NAME: hydro_simmim_pretrain
-  PRETRAINED: checkpoints/ckpt_epoch_799.pth
+  NAME: hydro_rgb_simmim_pretrain
+  PRETRAINED: checkpoints/swin-v2-rgb/ckpt_epoch_799.pth
   DROP_PATH_RATE: 0.1
   SIMMIM:
     NORM_TARGET:
@@ -12,11 +12,11 @@ MODEL:
     DEPTHS: [ 2, 2, 18, 2 ]
     NUM_HEADS: [ 4, 8, 16, 32 ]
     WINDOW_SIZE: 16
-    IN_CHANS: 12
+    IN_CHANS: 3
 DATA:
   DATA_PATH: /workspace/storage/data/hydro/images/
-  BANDS: all
-  CHANNELS: 12
+  BANDS: rgb
+  CHANNELS: 3
   IMG_SIZE: 256
   MASK_PATCH_SIZE: 32
   MASK_RATIO: 0.6
@@ -34,4 +34,4 @@ TRAIN:
     MULTISTEPS: [700,]
 PRINT_FREQ: 100
 SAVE_FREQ: 5
-TAG: hydro_simmim_pretrain_swinv2_base_img256_window16_800ep
+TAG: hydro_rgb_simmim_pretrain_swinv2_base_img256_window16_800ep
