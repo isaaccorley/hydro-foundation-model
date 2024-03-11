@@ -36,7 +36,7 @@ Our pretraining dataset consists of 50k sampled 256x256 Sentinel-2 patches conta
 <td align="center">3</td>
 <td align="center">256 x 256</td>
 <td align="center"><a href="checkpoints/swin-v2-rgb/config.yaml">config</a></td>
-<td align="center"><a href="hhttps://huggingface.co/isaaccorley/hydro-foundation-model/blob/main/swin-v2-rgb/ckpt_epoch_799.pth">model</a>&nbsp;</a></td>
+<td align="center"><a href="https://huggingface.co/isaaccorley/hydro-foundation-model/blob/main/swin-v2-rgb/ckpt_epoch_799.pth">model</a>&nbsp;</a></td>
 
 </tr>
 <!-- ROW: faster_rcnn_R_50_DC5_1x -->
