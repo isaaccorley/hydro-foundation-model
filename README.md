@@ -18,7 +18,35 @@ There are many foundation models for remote sensing but nearly all of them focus
 
 We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder using the **SimMIM** method from the paper, ["SimMIM: A Simple Framework for Masked Image Modeling"](https://arxiv.org/abs/2111.09886), which is an efficient variation of the [Masked Autoencoder (MAE)](https://arxiv.org/abs/2111.06377) self-supervised learning framework.
 
-Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe.
+Our pretraining dataset consists of 50k sampled 256x256 Sentinel-2 patches containing water from around the globe.
+
+### Checkpoints
+
+<table><tbody>
+<!-- START TABLE -->
+<!-- TABLE HEADER -->
+<th valign="bottom">Name</th>
+<th valign="bottom"># Channels</th>
+<th valign="bottom">Image Size</th>
+<th valign="bottom">Config</th>
+<th valign="bottom">Checkpoint</th>
+<!-- TABLE BODY -->
+<!-- ROW: faster_rcnn_R_50_C4_1x -->
+ <tr><td align="left">Swin v2 RGB</td>
+<td align="center">3</td>
+<td align="center">256 x 256</td>
+<td align="center"><a href="checkpoints/swin-v2-rgb/config.yaml">config</a></td>
+<td align="center"><a href="hhttps://huggingface.co/isaaccorley/hydro-foundation-model/blob/main/swin-v2-rgb/ckpt_epoch_799.pth">model</a>&nbsp;</a></td>
+
+</tr>
+<!-- ROW: faster_rcnn_R_50_DC5_1x -->
+ <tr><td align="left">Swin v2 MSI</td>
+<td align="center">12</td>
+<td align="center">256 x 256</td>
+<td align="center"><a href="checkpoints/swin-v2-msi/config.yaml">config</a></td>
+<td align="center"><a href="https://huggingface.co/isaaccorley/hydro-foundation-model/blob/main/swin-v2-msi/ckpt_epoch_799.pth">model</a>&nbsp;</td>
+</tr>
+</tbody></table>
 
 ### Usage
 
