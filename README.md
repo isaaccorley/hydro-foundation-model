@@ -54,6 +54,9 @@ Clone the repo with submodules
 
 ```bash
 git clone --recurse-submodules https://github.com/isaaccorley/hydro-foundation-model.git
+cd Swin-Transformer
+checkout hydro
+cd ..
 ```
 
 This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
