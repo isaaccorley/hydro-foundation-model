@@ -1,17 +1,17 @@
-import os
-import json
 import glob
+import json
+import os
 
-import torch
-import rasterio
-import numpy as np
-import matplotlib.pyplot as plt
 import kornia.augmentation as K
+import matplotlib.pyplot as plt
+import numpy as np
+import rasterio
+import torch
 from matplotlib.colors import ListedColormap
+from torchgeo.datamodules.geo import NonGeoDataModule
 from torchgeo.datasets import NonGeoDataset
 from torchgeo.datasets.utils import percentile_normalization
 from torchgeo.transforms import AugmentationSequential
-from torchgeo.datamodules.geo import NonGeoDataModule
 
 
 class MARIDA(NonGeoDataset):
@@ -37,37 +37,43 @@ class MARIDA(NonGeoDataset):
     debris_existences = ["Very close", "Away", "No"]
 
     cmap = ListedColormap(
-        np.array([
-            (0, 0, 0),
-            (255, 0, 0),
-            (0, 128, 0),
-            (50, 205, 50),
-            (165, 42, 42),
-            (255, 165, 0),
-            (192, 192, 192),
-            (0, 0, 128),
-            (255, 215, 0),
-            (128, 0, 128),
-            (189, 183, 107),
-            (0, 206, 209),
-            (255, 245, 238),
-            (128, 128, 128),
-            (255, 255, 0),
-            (188, 143, 143)
-        ]) / 255.0
+        np.array(
+            [
+                (0, 0, 0),
+                (255, 0, 0),
+                (0, 128, 0),
+                (50, 205, 50),
+                (165, 42, 42),
+                (255, 165, 0),
+                (192, 192, 192),
+                (0, 0, 128),
+                (255, 215, 0),
+                (128, 0, 128),
+                (189, 183, 107),
+                (0, 206, 209),
+                (255, 245, 238),
+                (128, 128, 128),
+                (255, 255, 0),
+                (188, 143, 143),
+            ]
+        )
+        / 255.0
     )
 
     conf_cmap = ListedColormap(
-        np.array([
-            (255, 0, 0),
-            (0, 128, 0),
-            (50, 205, 50),
-        ]) / 255.0
+        np.array(
+            [
+                (255, 0, 0),
+                (0, 128, 0),
+                (50, 205, 50),
+            ]
+        )
+        / 255.0
     )
     splits = {
         "train": os.path.join("splits", "train_X.txt"),
         "val": os.path.join("splits", "val_X.txt"),
-        "test": os.path.join("splits", "test_X.txt")
+        "test": os.path.join("splits", "test_X.txt"),
     }
     multilabel_mapping_filename = "labels_mapping.txt"
     band_sets = ["all", "rgb"]
@@ -88,8 +94,14 @@ class MARIDA(NonGeoDataset):
         with open(os.path.join(self.root, self.splits[self.split])) as f:
             prefixes = [f"S2_{prefix}" for prefix in f.read().strip().splitlines()]
 
-        self.masks = sorted(glob.glob(os.path.join(self.root, "patches", "**", "*_cl.tif")))
-        self.masks = [mask for mask in self.masks if os.path.basename(mask).replace("_cl.tif", "") in prefixes]
+        self.masks = sorted(
+            glob.glob(os.path.join(self.root, "patches", "**", "*_cl.tif"))
+        )
+        self.masks = [
+            mask
+            for mask in self.masks
+            if os.path.basename(mask).replace("_cl.tif", "") in prefixes
+        ]
         self.images = [mask.replace("_cl.tif", ".tif") for mask in self.masks]
         self.conf_masks = [mask.replace("_cl.tif", "_conf.tif") for mask in self.masks]
 
@@ -128,8 +140,12 @@ class MARIDA(NonGeoDataset):
         return len(self.images)
 
     def plot(self, sample, show_titles=True, suptitle=None, lower_pct=2, upper_pct=98):
-        img = sample["image"][(3, 2, 1), ...] if self.bands == "all" else sample["image"]
-        img = percentile_normalization(img.numpy(), lower=lower_pct, upper=upper_pct).transpose(1, 2, 0)
+        img = (
+            sample["image"][(3, 2, 1), ...] if self.bands == "all" else sample["image"]
+        )
+        img = percentile_normalization(
+            img.numpy(), lower=lower_pct, upper=upper_pct
+        ).transpose(1, 2, 0)
         mask = sample["mask"].numpy()
 
         if "prediction" in sample:
@@ -142,9 +158,17 @@ class MARIDA(NonGeoDataset):
 
         fig, axs = plt.subplots(1, n_cols, figsize=(width, 5))
         axs[0].imshow(img)
-        axs[1].imshow(mask, vmin=0, vmax=self.cmap.N - 1, cmap=self.cmap, interpolation="none")
+        axs[1].imshow(
+            mask, vmin=0, vmax=self.cmap.N - 1, cmap=self.cmap, interpolation="none"
+        )
         if "prediction" in sample:
-            axs[2].imshow(prediction, vmin=0, vmax=self.cmap.N - 1, cmap=self.cmap, interpolation="none")
+            axs[2].imshow(
+                prediction,
+                vmin=0,
+                vmax=self.cmap.N - 1,
+                cmap=self.cmap,
+                interpolation="none",
+            )
         if show_titles:
             axs[0].set_title("Image")
             axs[1].set_title("Labels")
@@ -177,32 +201,36 @@ class MARIDADataModule(NonGeoDataModule):
             0.00052,
         ]
     )
-    means = torch.tensor([
-        0.05197577,
-        0.04783991,
-        0.04056812,
-        0.03163572,
-        0.02972606,
-        0.03457443,
-        0.03875053,
-        0.03436435,
-        0.0392113,
-        0.02358126,
-        0.01588816,
-    ])
-    stds = torch.tensor([
-        0.04725893,
-        0.04743808,
-        0.04699043,
-        0.04967381,
-        0.04946782,
-        0.06458357,
-        0.07594915,
-        0.07120246,
-        0.08251058,
-        0.05111466,
-        0.03524419,
-    ])
+    means = torch.tensor(
+        [
+            0.05197577,
+            0.04783991,
+            0.04056812,
+            0.03163572,
+            0.02972606,
+            0.03457443,
+            0.03875053,
+            0.03436435,
+            0.0392113,
+            0.02358126,
+            0.01588816,
+        ]
+    )
+    stds = torch.tensor(
+        [
+            0.04725893,
+            0.04743808,
+            0.04699043,
+            0.04967381,
+            0.04946782,
+            0.06458357,
+            0.07594915,
+            0.07120246,
+            0.08251058,
+            0.05111466,
+            0.03524419,
+        ]
+    )
 
     def __init__(self, batch_size: int = 64, num_workers: int = 0, **kwargs) -> None:
         super().__init__(MARIDA, batch_size, num_workers, **kwargs)

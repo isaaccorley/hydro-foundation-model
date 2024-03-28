@@ -1,6 +1,6 @@
+import logging
 import os
 import sys
-import logging
 from argparse import Namespace
 
 import torch
@@ -15,10 +15,12 @@ def transforms(config):
         mean = mean[[3, 2, 1]]
         std = std[[3, 2, 1]]
 
-    return T.Compose([
+    return T.Compose(
+        [
             T.Lambda(lambda x: x / 10000.0),
             T.Normalize(mean=mean, std=std),
-        ])
+        ]
+    )
 
 
 def swin_v2(config_path):

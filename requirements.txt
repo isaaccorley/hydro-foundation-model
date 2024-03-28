@@ -1,4 +1,5 @@
 torchgeo[all]
 torch
 torchvision
+rasterio
 omegaconf
