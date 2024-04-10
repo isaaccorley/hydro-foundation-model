@@ -3,3 +3,7 @@ torch
 torchvision
 rasterio
 omegaconf
+faissknn
+timm
+scikit-learn
+kornia

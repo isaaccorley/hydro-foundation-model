@@ -4,7 +4,6 @@ import os
 import lightning
 import rasterio
 import torch
-import torchvision.transforms as T
 
 
 class ShipS2AIS(torch.utils.data.Dataset):
@@ -52,6 +51,9 @@ class ShipS2AIS(torch.utils.data.Dataset):
         x = torch.from_numpy(x)
         return x
 
+    def __len__(self):
+        return len(self.images)
+
     def __getitem__(self, index):
         path, label = self.images[index], self.targets[index]
         image = self.load_image(path)
@@ -64,3 +66,45 @@ class ShipS2AIS(torch.utils.data.Dataset):
             image = self.transforms(image)
 
         return dict(image=image, label=label)
+
+
+class ShipS2AISDataModule(lightning.LightningDataModule):
+    def __init__(
+        self, root, bands="all", transforms=None, batch_size=32, num_workers=8, seed=0
+    ):
+        self.root = root
+        self.bands = bands
+        self.transforms = transforms
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.generator = torch.Generator().manual_seed(seed)
+
+    def setup(self):
+        self.train_dataset = ShipS2AIS(
+            root=self.root,
+            split="train",
+            bands=self.bands,
+            transforms=self.transforms,
+        )
+        self.test_dataset = ShipS2AIS(
+            root=self.root,
+            split="test",
+            bands=self.bands,
+            transforms=self.transforms
+        )
+
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+        )
+
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+        )
