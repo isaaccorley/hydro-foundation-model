@@ -1,10 +1,8 @@
 import glob
 import os
 
-import lightning
 import rasterio
 import torch
-import torchvision.transforms as T
 
 
 class ShipS2AIS(torch.utils.data.Dataset):
