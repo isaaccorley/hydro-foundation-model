@@ -1,6 +1,6 @@
-import glob
-import json
 import os
+import glob
+import warnings
 
 import kornia.augmentation as K
 import matplotlib.pyplot as plt
@@ -11,28 +11,36 @@ from matplotlib.colors import ListedColormap
 from torchgeo.datamodules.geo import NonGeoDataModule
 from torchgeo.datasets import NonGeoDataset
 from torchgeo.datasets.utils import percentile_normalization
+from rasterio.enums import Resampling
+from rasterio.errors import NotGeoreferencedWarning
 
 from .transforms import Denormalize
 
+warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
-class MARIDA(NonGeoDataset):
+
+def get_band(path):
+    return int(path.split("_")[-2])
+
+
+class MADOS(NonGeoDataset):
     classes = [
         "Background",
         "Marine Debris",
         "Dense Sargassum",
-        "Sparse Sargassum",
+        "Sparse Floating Algae",
         "Natural Organic Material",
         "Ship",
-        "Clouds",
+        "Oil Spill",
         "Marine Water",
         "Sediment-Laden Water",
         "Foam",
         "Turbid Water",
         "Shallow Water",
-        "Waves",
-        "Cloud Shadows",
-        "Wakes",
-        "Mixed Water",
+        "Waves & Wakes",
+        "Oil Platform",
+        "Jellyfish",
+        "Sea snot",
     ]
     confidences = ["High", "Moderate", "Low"]
     debris_existences = ["Very close", "Away", "No"]
@@ -46,16 +54,16 @@ class MARIDA(NonGeoDataset):
                 (50, 205, 50),
                 (165, 42, 42),
                 (255, 165, 0),
-                (192, 192, 192),
+                (216, 191, 216),
                 (0, 0, 128),
                 (255, 215, 0),
                 (128, 0, 128),
                 (189, 183, 107),
                 (0, 206, 209),
-                (255, 245, 238),
-                (128, 128, 128),
+                (255, 228, 196),
+                (105, 105, 105),
+                (255, 105, 180),
                 (255, 255, 0),
-                (188, 143, 143),
             ]
         )
         / 255.0
@@ -71,13 +79,53 @@ class MARIDA(NonGeoDataset):
         )
         / 255.0
     )
+    directory = "MADOS"
     splits = {
         "train": os.path.join("splits", "train_X.txt"),
         "val": os.path.join("splits", "val_X.txt"),
         "test": os.path.join("splits", "test_X.txt"),
     }
-    multilabel_mapping_filename = "labels_mapping.txt"
-    band_sets = ["all", "rgb"]
+    all_bands = (
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06",
+        "B07",
+        "B08",
+        "B8A",
+        "B11",
+        "B12",
+    )
+    wavelengths = (
+        "442",
+        "492",
+        "559",
+        "665",
+        "704",
+        "739",
+        "780",
+        "833",
+        "864",
+        "1610",
+        "2186",
+    )
+    resolutions = (
+        "60",
+        "10",
+        "10",
+        "10",
+        "20",
+        "20",
+        "20",
+        "10",
+        "20",
+        "20",
+        "20",
+    )
+    band_sets = ("all", "rgb")
+    image_size = (240, 240)
 
     def __init__(self, root, split="train", bands="all", transforms=None):
         assert split in self.splits
@@ -86,51 +134,65 @@ class MARIDA(NonGeoDataset):
         self.split = split
         self.bands = bands
         self.transforms = transforms
-        self.load_files()
+        self.ids = self.load_files()
+
+        if bands == "all":
+            self.band_indices = list(range(len(self.all_bands)))
+        else:
+            self.band_indices = (3, 2, 1)
 
     def load_files(self):
-        with open(os.path.join(self.root, self.multilabel_mapping_filename)) as f:
-            self.multilabels = json.load(f)
+        with open(
+            os.path.join(self.root, self.directory, self.splits[self.split])
+        ) as f:
+            ids = f.read().strip().splitlines()
+            ids = [tuple(i.rsplit("_", 1)) for i in ids]
+        return ids
 
-        with open(os.path.join(self.root, self.splits[self.split])) as f:
-            prefixes = [f"S2_{prefix}" for prefix in f.read().strip().splitlines()]
+    def load_image(self, index):
+        scene, crop = self.ids[index]
 
-        self.masks = sorted(
-            glob.glob(os.path.join(self.root, "patches", "**", "*_cl.tif"))
+        paths = glob.glob(
+            os.path.join(
+                self.root,
+                self.directory,
+                scene,
+                "**",
+                f"{scene}_*L2R_rhorc*_{crop}.tif",
+            )
         )
-        self.masks = [
-            mask
-            for mask in self.masks
-            if os.path.basename(mask).replace("_cl.tif", "") in prefixes
-        ]
-        self.images = [mask.replace("_cl.tif", ".tif") for mask in self.masks]
-        self.conf_masks = [mask.replace("_cl.tif", "_conf.tif") for mask in self.masks]
+        paths = sorted(paths, key=get_band)
+        if self.bands == "rgb":
+            paths = [paths[i] for i in (3, 2, 1)]
 
-    def load_image(self, path):
-        with rasterio.open(path) as f:
-            image = f.read()
-        image = torch.from_numpy(image).float()
-        return image
+        images = []
+        for path in paths:
+            with rasterio.open(path) as f:
+                image = f.read(
+                    indexes=1,
+                    out_shape=self.image_size,
+                    out_dtype="float32",
+                    resampling=Resampling.bilinear,
+                )
+                image = torch.from_numpy(image)
+                images.append(image)
+        return torch.stack(images, dim=0)
 
-    def load_mask(self, path):
+    def load_mask(self, index):
+        scene, crop = self.ids[index]
+        path = os.path.join(
+            self.root, self.directory, scene, "10", f"{scene}_L2R_cl_{crop}.tif"
+        )
         with rasterio.open(path) as f:
             mask = f.read().squeeze()
         mask = torch.from_numpy(mask).long()
+        mask = mask - 1
         return mask
 
-    def __getitem__(self, idx):
-        image = self.load_image(self.images[idx])
-        if self.bands == "rgb":
-            image = image[(3, 2, 1), ...]
-
-        mask = self.load_mask(self.masks[idx])
-        # mask_conf = self.load_mask(self.conf_masks[idx])
-
-        sample = {
-            "image": image,
-            "mask": mask,
-            # "mask_conf": mask_conf
-        }
+    def __getitem__(self, index):
+        image = self.load_image(index)
+        mask = self.load_mask(index)
+        sample = {"image": image, "mask": mask}
 
         if self.transforms:
             sample = self.transforms(sample)
@@ -138,7 +200,7 @@ class MARIDA(NonGeoDataset):
         return sample
 
     def __len__(self):
-        return len(self.images)
+        return len(self.ids)
 
     def plot(self, sample, show_titles=True, suptitle=None, lower_pct=2, upper_pct=98):
         img = (
@@ -160,7 +222,7 @@ class MARIDA(NonGeoDataset):
         fig, axs = plt.subplots(1, n_cols, figsize=(width, 5))
         axs[0].imshow(img)
         axs[1].imshow(
-            mask, vmin=0, vmax=self.cmap.N - 1, cmap=self.cmap, interpolation="none"
+            mask, vmin=-1, vmax=self.cmap.N - 2, cmap=self.cmap, interpolation="none"
         )
         if "prediction" in sample:
             axs[2].imshow(
@@ -181,55 +243,55 @@ class MARIDA(NonGeoDataset):
         return fig
 
 
-class MARIDADataModule(NonGeoDataModule):
+class MADOSDataModule(NonGeoDataModule):
     # Stats from https://github.com/marine-debris/marine-debris.github.io/blob/main/semantic_segmentation/unet/dataloader.py
     class_weights = torch.tensor(
         [
-            0.00452,
-            0.00203,
-            0.00254,
-            0.00168,
-            0.00766,
-            0.15206,
-            0.20232,
-            0.35941,
-            0.00109,
-            0.20218,
-            0.03226,
-            0.00693,
-            0.01322,
-            0.01158,
-            0.00052,
+            0.00336,
+            0.00241,
+            0.00336,
+            0.00142,
+            0.00775,
+            0.18452,
+            0.34775,
+            0.20638,
+            0.00062,
+            0.1169,
+            0.09188,
+            0.01309,
+            0.00917,
+            0.00176,
+            0.00963,
         ]
     )
     means = torch.tensor(
         [
-            0.05197577,
-            0.04783991,
-            0.04056812,
-            0.03163572,
-            0.02972606,
-            0.03457443,
-            0.03875053,
-            0.03436435,
-            0.0392113,
-            0.02358126,
-            0.01588816,
+            0.0582676,
+            0.05223386,
+            0.04381474,
+            0.0357083,
+            0.03412902,
+            0.03680401,
+            0.03999107,
+            0.03566642,
+            0.03965081,
+            0.0267993,
+            0.01978944,
         ]
     )
     stds = torch.tensor(
         [
-            0.04725893,
-            0.04743808,
-            0.04699043,
-            0.04967381,
-            0.04946782,
-            0.06458357,
-            0.07594915,
-            0.07120246,
-            0.08251058,
-            0.05111466,
-            0.03524419,
+            0.03240627,
+            0.03432253,
+            0.0354812,
+            0.0375769,
+            0.03785412,
+            0.04992323,
+            0.05884482,
+            0.05545856,
+            0.06423746,
+            0.04211187,
+            0.03019115,
         ]
     )
 
@@ -240,7 +302,7 @@ class MARIDADataModule(NonGeoDataModule):
         num_workers: int = 0,
         **kwargs,
     ) -> None:
-        super().__init__(MARIDA, batch_size, num_workers, **kwargs)
+        super().__init__(MADOS, batch_size, num_workers, **kwargs)
         if "bands" in kwargs and kwargs["bands"] == "rgb":
             self.mean = self.means[[3, 2, 1]]
             self.std = self.stds[[3, 2, 1]]

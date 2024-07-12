@@ -1,10 +1,13 @@
 import logging
 import os
-import sys
 from argparse import Namespace
 
 import torch
 import torchvision.transforms as T
+
+from .build import build_model
+from ..pretrain.config import get_config
+from ..pretrain.utils import load_pretrained
 
 
 def transforms(config):
@@ -24,13 +27,8 @@ def transforms(config):
 
 
 def swin_v2(config_path):
-    sys.path.append("./Swin-Transformer/")
-    from config import get_config
-    from models import build_model
-    from utils_simmim import load_pretrained
-
     logger = logging.getLogger()
-    os.environ["LOCAL_RANK"] = "1"
+    os.environ["LOCAL_RANK"] = "-1"
 
     args = Namespace(cfg=config_path, opts=None)
     cfg = get_config(args)

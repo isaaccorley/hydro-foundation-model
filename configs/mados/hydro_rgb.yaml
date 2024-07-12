@@ -1,0 +1,32 @@
+module:
+    _target_: src.models.segmentation.CustomSemanticSegmentationTask
+    model: hydro
+    backbone: swinv2
+    weights: checkpoints/swin-v2-rgb/config.yaml
+    in_channels: 3
+    num_classes: 15
+    lr: 1E-4
+    image_size: ${image_size}
+    loss: ce
+    tmax: 50
+    ignore_index: -1
+    class_weights: [43.3063, 45.1210, 43.3063, 47.1836, 36.5337,  5.3740,  3.1932,  4.9004, 48.9949,  7.7939,  9.4293, 30.7179, 34.7794, 46.4541, 34.2472]
+
+datamodule:
+    _target_: src.datasets.MADOSDataModule
+    root: benchmark-datasets/mados
+    bands: rgb
+    image_size: ${image_size}
+    batch_size: 16
+    num_workers: 16
+
+trainer:
+    _target_: lightning.Trainer
+    max_epochs: 250
+    accelerator: gpu
+    precision: 16-mixed
+    devices: 1
+    log_every_n_steps: 25
+
+image_size: 256
+experiment_name: mados_swinv2_hydro_rgb

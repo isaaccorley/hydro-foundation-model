@@ -1,5 +1,8 @@
 torchgeo[all]
-torch
-torchvision
-rasterio
-omegaconf
+yacs
+ruff
+scipy
+termcolor
+mlflow
+azure-ai-ml
+azure-identity
