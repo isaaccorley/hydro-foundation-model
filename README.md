@@ -18,7 +18,7 @@ There are many foundation models for remote sensing but nearly all of them focus
 
 We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder using the **SimMIM** method from the paper, ["SimMIM: A Simple Framework for Masked Image Modeling"](https://arxiv.org/abs/2111.09886), which is an efficient variation of the [Masked Autoencoder (MAE)](https://arxiv.org/abs/2111.06377) self-supervised learning framework.
 
-Our pretraining dataset consists of 50k sampled 256x256 Sentinel-2 patches containing water from around the globe.
+Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe.
 
 ### Checkpoints
 
