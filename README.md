@@ -20,6 +20,10 @@ We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder us
 
 Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe. The images are from the Sentinel-2 L2A STAC collection hosted on the Planetary Computer. The bands are: (B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12).
 
+### Dataset Download
+
+The dataset is hosted on HuggingFace and can be downloaded [here](https://huggingface.co/datasets/isaaccorley/Hydro).
+
 ### Checkpoints
 
 <table><tbody>
