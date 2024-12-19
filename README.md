@@ -56,11 +56,10 @@ The dataset is hosted on HuggingFace and can be downloaded [here](https://huggin
 
 This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
 
-To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/hydro/` folder.
+To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/pretrain/` folder.
 
 ```bash
-cd Swin-Transformer
-bash hydro_pretrain.sh
+python pretrain.py
 ```
 
 Loading a pretrained model as a classifier. Make sure you define MODEL.PRETRAINED as the path to your downloaded checkpoint on your config like below:
@@ -117,6 +116,8 @@ An example notebook with this code is available at `embed.ipynb`.
 ### Evaluation
 
 We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo currently contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
+
+See the train.py script for an example.
 
 ### Cite
 
