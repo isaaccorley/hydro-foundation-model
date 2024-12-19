@@ -54,15 +54,6 @@ The dataset is hosted on HuggingFace and can be downloaded [here](https://huggin
 
 ### Usage
 
-Clone the repo with submodules
-
-```bash
-git clone --recurse-submodules https://github.com/isaaccorley/hydro-foundation-model.git
-cd Swin-Transformer
-checkout hydro
-cd ..
-```
-
 This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
 
 To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/hydro/` folder.
