@@ -73,8 +73,8 @@ class ShipS2AIS(torch.utils.data.Dataset):
         if self.bands != "rgb":
             image = image[[2, 1, 0]]
         image = image.numpy().transpose(1, 2, 0)
-        plt.figure()
+        fig = plt.figure()
         plt.imshow(np.clip(image / 3000, 0, 1))
         plt.title(self.classes[label])
-        plt.show()
-        plt.close()
+        plt.tight_layout()
+        return fig
