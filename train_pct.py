@@ -1,7 +1,6 @@
 import argparse
-import os
 
-import lightning  # noqa: F401
+import lightning
 import mlflow  # noqa: F401
 import torch
 from hydra.utils import instantiate
@@ -11,12 +10,11 @@ from omegaconf import OmegaConf
 
 import src  # noqa: F401
 
-
-lightning.pytorch.seed_everything(0)
 torch.set_float32_matmul_precision("medium")
 
 
 def main(args):
+    lightning.pytorch.seed_everything(args.seed)
     config = OmegaConf.load(args.config)
     module = instantiate(config.module)
 
@@ -70,5 +68,6 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--limit_train_batches", type=float, default=0.01)
     parser.add_argument("--device", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     main(args)

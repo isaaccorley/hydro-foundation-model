@@ -49,6 +49,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--ckpt", type=str, required=True)
     parser.add_argument(
         "--root",
         type=str,

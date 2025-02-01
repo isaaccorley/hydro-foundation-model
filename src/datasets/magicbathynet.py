@@ -2,19 +2,16 @@ import os
 import glob
 import warnings
 
-import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import torch
 from matplotlib.colors import ListedColormap
-from torchgeo.datamodules.geo import NonGeoDataModule
 from torchgeo.datasets import NonGeoDataset
 from torchgeo.datasets.utils import percentile_normalization
 from rasterio.enums import Resampling
 from rasterio.errors import NotGeoreferencedWarning
 
-from .transforms import Denormalize
 
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
@@ -24,7 +21,6 @@ def get_band(path):
 
 
 class MagicBathyNet(NonGeoDataset):
-
     conf_cmap = ListedColormap(
         np.array(
             [

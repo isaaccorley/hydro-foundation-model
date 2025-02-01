@@ -33,7 +33,7 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
         weights: str = self.weights
         in_channels: int = self.hparams["in_channels"]
         num_classes: int = self.hparams["num_classes"]
-        image_size: int = self.hparams["image_size"]
+        self.hparams["image_size"]
 
         if model == "unet":
             self.model = smp.Unet(

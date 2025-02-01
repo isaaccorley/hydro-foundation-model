@@ -1,15 +1,13 @@
 import os
 
-import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import torch
-from torchgeo.datamodules.geo import NonGeoDataModule
 from torchgeo.datasets import NonGeoDataset
 import logging
-logging.getLogger("rasterio._env").setLevel(logging.ERROR)
 
+logging.getLogger("rasterio._env").setLevel(logging.ERROR)
 
 
 class EarthSurfaceWater(NonGeoDataset):
@@ -20,6 +18,7 @@ class EarthSurfaceWater(NonGeoDataset):
     Described in: https://www.sciencedirect.com/science/article/pii/S0303243421001793
     Code/data download link: https://github.com/xinluo2018/WatNet/tree/main
     """
+
     all_bands = [
         "B02",
         "B03",
@@ -37,7 +36,9 @@ class EarthSurfaceWater(NonGeoDataset):
     }
     band_sets = ("all", "rgb")
 
-    def __init__(self, root, split="train", bands="all", transforms=None, pad_sizes=True):
+    def __init__(
+        self, root, split="train", bands="all", transforms=None, pad_sizes=True
+    ):
         assert split in self.splits
         assert bands in self.band_sets
         self.root = root
@@ -48,20 +49,19 @@ class EarthSurfaceWater(NonGeoDataset):
         self.load_files()
 
     def load_files(self):
-
-
         self.filenames = []
-        img_root = os.path.join(self.root, self.directory, f"{self.split_to_directory[self.split]}_scene")
-        mask_root = os.path.join(self.root, self.directory, f"{self.split_to_directory[self.split]}_truth")
+        img_root = os.path.join(
+            self.root, self.directory, f"{self.split_to_directory[self.split]}_scene"
+        )
+        mask_root = os.path.join(
+            self.root, self.directory, f"{self.split_to_directory[self.split]}_truth"
+        )
         for fn in sorted(os.listdir(img_root)):
             image_fn = os.path.join(img_root, fn)
             parts = fn[:-4].split("_")
 
             idx = "_".join(parts[:-2])
-            mask_fn = os.path.join(
-                mask_root,
-                f"{idx}_{parts[-1]}_Truth.tif"
-            )
+            mask_fn = os.path.join(mask_root, f"{idx}_{parts[-1]}_Truth.tif")
             self.filenames.append((image_fn, mask_fn))
 
     def load_image(self, path):
@@ -70,7 +70,7 @@ class EarthSurfaceWater(NonGeoDataset):
         image = torch.from_numpy(image)
         if self.pad_sizes:
             pad = torch.zeros((6, 1440, 1568)).float()
-            pad[:, :image.shape[1], :image.shape[2]] = image
+            pad[:, : image.shape[1], : image.shape[2]] = image
             return pad
         else:
             return image.float()
@@ -81,7 +81,7 @@ class EarthSurfaceWater(NonGeoDataset):
         mask = torch.from_numpy(mask)
         if self.pad_sizes:
             pad = torch.zeros((1440, 1568)).long()
-            pad[:mask.shape[0], :mask.shape[1]] = mask
+            pad[: mask.shape[0], : mask.shape[1]] = mask
             return pad
         else:
             return mask.long()

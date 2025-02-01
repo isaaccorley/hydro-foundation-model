@@ -1,6 +1,7 @@
 from torch.utils.data import Subset, Dataset
 import numpy as np
 
+
 def get_fraction_dataset(dataset: Dataset, fraction: float, seed: int = 42):
     """Returns a new dataset that is `fraction` size of the original dataset.
 

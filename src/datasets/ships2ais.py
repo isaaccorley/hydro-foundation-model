@@ -6,6 +6,7 @@ import rasterio
 import torch
 import matplotlib.pyplot as plt
 
+
 class ShipS2AIS(torch.utils.data.Dataset):
     """
     The Ship-S2-AIS is a dataset of 140x140 Sentinel-2 L1C imagery for classifying if

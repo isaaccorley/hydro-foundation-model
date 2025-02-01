@@ -194,7 +194,21 @@ class MADOS(NonGeoDataset):
         mask = self.load_mask(index)
         sample = {"image": image, "mask": mask}
 
-        if self.split == "train" and index in (315, 412, 414, 732, 803, 804, 855, 856, 857, 858, 859, 1209, 1310):
+        if self.split == "train" and index in (
+            315,
+            412,
+            414,
+            732,
+            803,
+            804,
+            855,
+            856,
+            857,
+            858,
+            859,
+            1209,
+            1310,
+        ):
             image[torch.isnan(image)] = 0
         elif self.split == "val" and index in (503, 548, 559, 570):
             image[torch.isnan(image)] = 0
