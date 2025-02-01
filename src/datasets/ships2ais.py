@@ -1,9 +1,10 @@
 import glob
 import os
 
+import numpy as np
 import rasterio
 import torch
-
+import matplotlib.pyplot as plt
 
 class ShipS2AIS(torch.utils.data.Dataset):
     """
@@ -21,6 +22,7 @@ class ShipS2AIS(torch.utils.data.Dataset):
 
     directory = "Sentinel-2-database-for-ship-detection"
     splits = dict(train="train", test="test")
+
     classes = ["neg", "ships"]
     band_sets = ["all", "rgb"]
     bands_names = ["B02", "B03", "B04", "B11", "B12"]
@@ -33,6 +35,9 @@ class ShipS2AIS(torch.utils.data.Dataset):
         self.bands = bands
         self.transforms = transforms
         self.images, self.targets = self.load_files(root, split)
+
+    def __len__(self):
+        return len(self.images)
 
     def load_files(self, root, split):
         folder = os.path.join(root, self.directory, self.splits[split])
@@ -62,3 +67,14 @@ class ShipS2AIS(torch.utils.data.Dataset):
             image = self.transforms(image)
 
         return dict(image=image, label=label)
+
+    def plot(self, sample):
+        image, label = sample["image"], sample["label"]
+        if self.bands != "rgb":
+            image = image[[2, 1, 0]]
+        image = image.numpy().transpose(1, 2, 0)
+        plt.figure()
+        plt.imshow(np.clip(image / 3000, 0, 1))
+        plt.title(self.classes[label])
+        plt.show()
+        plt.close()
