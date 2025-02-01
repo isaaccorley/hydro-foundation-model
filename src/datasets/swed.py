@@ -1,5 +1,6 @@
 import os
 
+from typing import Optional
 import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +11,7 @@ from torchgeo.datasets import NonGeoDataset
 from torchgeo.datasets.utils import percentile_normalization
 
 from .transforms import Denormalize
+from .utils import get_fraction_dataset
 
 
 class SWED(NonGeoDataset):
@@ -178,6 +180,8 @@ class SWEDDataModule(NonGeoDataModule):
         image_size: int = 256,
         batch_size: int = 64,
         num_workers: int = 0,
+        train_fraction: Optional[float] = None,
+        seed: int = 42,
         **kwargs,
     ) -> None:
         super().__init__(SWED, batch_size, num_workers, **kwargs)
@@ -190,6 +194,8 @@ class SWEDDataModule(NonGeoDataModule):
             self.std = self.stds
 
         self.image_size = image_size
+        self.train_fraction = train_fraction
+        self.seed = seed
 
         self.train_aug = K.AugmentationSequential(
             K.Normalize(mean=0.0, std=10000.0),
@@ -219,7 +225,10 @@ class SWEDDataModule(NonGeoDataModule):
 
     def setup(self, stage=None):
         if stage in ["fit"]:
-            self.train_dataset = self.dataset_class(split="train", **self.kwargs)
+            ds = self.dataset_class(split="train", **self.kwargs)
+            if self.train_fraction is not None:
+                ds = get_fraction_dataset(ds, self.train_fraction, self.seed)
+            self.train_dataset = ds
         if stage in ["fit", "validate"]:
             self.val_dataset = self.dataset_class(split="test", **self.kwargs)
         if stage in ["test"]:
