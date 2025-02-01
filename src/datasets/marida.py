@@ -123,6 +123,13 @@ class MARIDA(NonGeoDataset):
         if self.bands == "rgb":
             image = image[(3, 2, 1), ...]
 
+        if self.split == "train" and idx == 204:
+            image[torch.isnan(image)] = 0
+        elif self.split == "val" and idx in (169, 170, 173):
+            image[torch.isnan(image)] = 0
+        elif self.split == "test" and idx in (287, 298, 309):
+            image[torch.isnan(image)] = 0
+
         mask = self.load_mask(self.masks[idx])
         # mask_conf = self.load_mask(self.conf_masks[idx])
 
