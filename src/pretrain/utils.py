@@ -20,7 +20,9 @@ def load_checkpoint(config, model, optimizer, lr_scheduler, scaler, logger):
             config.MODEL.RESUME, map_location="cpu", check_hash=True
         )
     else:
-        checkpoint = torch.load(config.MODEL.RESUME, map_location="cpu")
+        checkpoint = torch.load(
+            config.MODEL.RESUME, map_location="cpu", weights_only=False
+        )
 
     # re-map keys due to name change (only for loading provided models)
     rpe_mlp_keys = [k for k in checkpoint["model"].keys() if "rpe_mlp" in k]
@@ -117,7 +119,9 @@ def reduce_tensor(tensor):
 
 def load_pretrained(config, model, logger):
     logger.info(f">>>>>>>>>> Fine-tuned from {config.MODEL.PRETRAINED} ..........")
-    checkpoint = torch.load(config.MODEL.PRETRAINED, map_location="cpu")
+    checkpoint = torch.load(
+        config.MODEL.PRETRAINED, map_location="cpu", weights_only=False
+    )
     checkpoint_model = checkpoint["model"]
 
     if any([True if "encoder." in k else False for k in checkpoint_model.keys()]):

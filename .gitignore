@@ -1,4 +1,6 @@
 data/
+benchmark-datasets/
+lightning_logs/
 output/
 *.pth
 

@@ -28,4 +28,4 @@ trainer:
     log_every_n_steps: 100
 
 image_size: 256
-experiment_name: hydro_swed
+experiment_name: hydro_swed_rgb

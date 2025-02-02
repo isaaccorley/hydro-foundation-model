@@ -8,6 +8,7 @@ from . import transforms
 
 __all__ = [
     "EarthSurfaceWater",
+    "EarthSurfaceWaterDataModule",
     "MARIDA",
     "MARIDADataModule",
     "MADOS",
@@ -15,6 +16,7 @@ __all__ = [
     "MagicBathyNet",
     # "MagicBathyNetDataModule",
     "ShipS2AIS",
+    "ShipS2AISDataModule",
     "SWED",
     "SWEDDataModule",
     "transforms",

@@ -1,4 +1,4 @@
-torchgeo[all]
+git+https://github.com/microsoft/torchgeo#egg=torchgeo[all]
 yacs
 ruff
 scipy

@@ -4,8 +4,7 @@ import os
 import lightning
 import mlflow  # noqa: F401
 import torch
-from hydra.utils import instantiate
-from lightning.pytorch.callbacks import LearningRateMonitor
+from hydra.utils import instantiate, get_class
 from lightning.pytorch.loggers import MLFlowLogger, TensorBoardLogger
 from omegaconf import OmegaConf
 
@@ -18,7 +17,9 @@ torch.set_float32_matmul_precision("medium")
 def main(args):
     lightning.pytorch.seed_everything(args.seed)
     config = OmegaConf.load(args.config)
-    module = instantiate(config.module)
+    module = get_class(config.module._target_).load_from_checkpoint(
+        args.ckpt, map_location="cpu", weights=config.module.weights
+    )
 
     if args.root is None:
         datamodule = instantiate(config.datamodule)
@@ -28,22 +29,19 @@ def main(args):
     if args.logger == "mlflow":
         logger = MLFlowLogger(
             experiment_name=os.environ.get(
-                "MLFLOW_EXPERIMENT_NAME", config.experiment_name
+                "MLFLOW_EXPERIMENT_NAME", config.experiment_name + "_test"
             ),
             run_id=os.environ.get("MLFLOW_RUN_ID", None),
         )
         logger.log_hyperparams(dict(config))
     else:
         logger = TensorBoardLogger(
-            save_dir="lightning_logs", name=config.experiment_name
+            save_dir="lightning_logs", name=config.experiment_name + "_test"
         )
 
-    callbacks = [LearningRateMonitor(logging_interval="step")]
     devices = [args.device] if args.device is not None else config.trainer.devices
-    trainer = instantiate(
-        config.trainer, logger=logger, callbacks=callbacks, devices=devices
-    )
-    trainer.fit(module, datamodule)
+    trainer = instantiate(config.trainer, logger=logger, devices=devices)
+    trainer.test(module, datamodule)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,7 @@ def main(args):
         limit_train_batches=args.limit_train_batches,
     )
     trainer.fit(module, datamodule)
+    trainer.test(datamodule=datamodule, ckpt_path="best")
 
 
 if __name__ == "__main__":

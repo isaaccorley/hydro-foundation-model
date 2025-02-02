@@ -1,7 +1,7 @@
 module:
     _target_: src.models.segmentation.CustomSemanticSegmentationTask
-    model: swinv2
-    backbone: swinv2_base_window16_256
+    model: unet
+    backbone: resnet50
     weights: imagenet
     in_channels: 12
     num_classes: 2
@@ -12,8 +12,8 @@ module:
     ignore_index: -1
 
 datamodule:
-    _target_: src.datasets.SWEDDataModule
-    root: benchmark-datasets/SWED
+    _target_: src.datasets.EarthSurfaceWaterDataModule
+    root: benchmark-datasets/earth_surface_water
     bands: all
     image_size: ${image_size}
     batch_size: 16
@@ -28,4 +28,4 @@ trainer:
     log_every_n_steps: 100
 
 image_size: 256
-experiment_name: hydro_swed_unet_swinv2_msi
+experiment_name: hydro_earth_surface_water_unet_resnet50_msi
