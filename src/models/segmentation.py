@@ -88,11 +88,16 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
         optimizer = AdamW(self.parameters(), lr=self.hparams["lr"])
         # total_steps = self.trainer.estimated_stepping_batches
         # scheduler = OneCycleLR(optimizer, max_lr=self.hparams["lr"], total_steps=total_steps)
-        scheduler = CosineAnnealingLR(optimizer, T_max=self.hparams.tmax, eta_min=1e-6)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": scheduler},
-        }
+        if self.hparams.tmax is None:
+            return optimizer
+        else:
+            scheduler = CosineAnnealingLR(
+                optimizer, T_max=self.hparams.tmax, eta_min=1e-6
+            )
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {"scheduler": scheduler},
+            }
 
     def configure_losses(self) -> None:
         loss: str = self.hparams["loss"]

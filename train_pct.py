@@ -16,12 +16,17 @@ torch.set_float32_matmul_precision("medium")
 def main(args):
     lightning.pytorch.seed_everything(args.seed)
     config = OmegaConf.load(args.config)
-    module = instantiate(config.module)
+    module = instantiate(config.module, tmax=None)
 
-    if args.root is None:
-        datamodule = instantiate(config.datamodule)
-    else:
-        datamodule = instantiate(config.datamodule, root=args.root)
+    dm_kwargs = dict(seed=args.seed)
+    if args.root is not None:
+        dm_kwargs["root"] = args.root
+    if args.batch_size is not None:
+        dm_kwargs["batch_size"] = args.batch_size
+    if args.train_fraction is not None:
+        dm_kwargs["train_fraction"] = args.train_fraction
+
+    datamodule = instantiate(config.datamodule, **dm_kwargs)
 
     if args.logger == "mlflow":
         run_name = (
@@ -47,7 +52,6 @@ def main(args):
         callbacks=callbacks,
         devices=devices,
         max_epochs=args.max_epochs,
-        limit_train_batches=args.limit_train_batches,
     )
     trainer.fit(module, datamodule)
     trainer.test(datamodule=datamodule, ckpt_path="best")
@@ -67,8 +71,9 @@ if __name__ == "__main__":
         "--logger", type=str, choices=["tensorboard", "mlflow"], default="mlflow"
     )
     parser.add_argument("--max_epochs", type=int, default=1)
-    parser.add_argument("--limit_train_batches", type=float, default=0.01)
     parser.add_argument("--device", type=int, default=None)
+    parser.add_argument("--batch_size", type=int, default=None)
+    parser.add_argument("--train_fraction", type=float, default=None)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     main(args)

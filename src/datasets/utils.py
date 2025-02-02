@@ -16,5 +16,7 @@ def get_fraction_dataset(dataset: Dataset, fraction: float, seed: int = 42):
     assert 0 < fraction <= 1, "Fraction must be in the range (0,1]."
     np.random.seed(seed)
     num_samples = int(len(dataset) * fraction)
+    if num_samples == 0:
+        num_samples = 1
     indices = np.random.choice(len(dataset), num_samples, replace=False)
     return Subset(dataset, indices)

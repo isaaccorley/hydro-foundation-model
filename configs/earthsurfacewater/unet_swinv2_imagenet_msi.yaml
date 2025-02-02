@@ -18,6 +18,7 @@ datamodule:
     image_size: ${image_size}
     batch_size: 16
     num_workers: 16
+    pad_bands: True
 
 trainer:
     _target_: lightning.Trainer

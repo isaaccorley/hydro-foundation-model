@@ -18,6 +18,8 @@ datamodule:
     image_size: ${image_size}
     batch_size: 16
     num_workers: 16
+    means: [590.23569706, 614.21682446, 429.9430203]
+    stds: [675.88746967, 582.87945694, 572.41639287]
 
 trainer:
     _target_: lightning.Trainer

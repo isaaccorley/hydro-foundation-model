@@ -180,6 +180,8 @@ class SWEDDataModule(NonGeoDataModule):
         image_size: int = 256,
         batch_size: int = 64,
         num_workers: int = 0,
+        means: Optional[list[float]] = None,
+        stds: Optional[list[float]] = None,
         train_fraction: Optional[float] = None,
         seed: int = 42,
         **kwargs,
@@ -192,6 +194,11 @@ class SWEDDataModule(NonGeoDataModule):
         else:
             self.mean = self.means
             self.std = self.stds
+
+        if means is not None:
+            self.mean = torch.tensor(means) / 10000.0
+        if stds is not None:
+            self.std = torch.tensor(stds) / 10000.0
 
         self.image_size = image_size
         self.train_fraction = train_fraction
@@ -229,6 +236,7 @@ class SWEDDataModule(NonGeoDataModule):
             if self.train_fraction is not None:
                 ds = get_fraction_dataset(ds, self.train_fraction, self.seed)
             self.train_dataset = ds
+            print("Train set length:", len(ds))
         if stage in ["fit", "validate"]:
             self.val_dataset = self.dataset_class(split="test", **self.kwargs)
         if stage in ["test"]:

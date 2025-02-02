@@ -16,6 +16,29 @@ from .utils import get_fraction_dataset
 logging.getLogger("rasterio._env").setLevel(logging.ERROR)
 
 
+class PadMissingBands:
+    def __call__(self, sample):
+        h, w = sample["image"].shape[1:]
+        zero_band = torch.zeros((h, w), dtype=torch.float)
+        B01 = zero_band
+        B02 = sample["image"][0]
+        B03 = sample["image"][1]
+        B04 = sample["image"][2]
+        B05 = zero_band
+        B06 = zero_band
+        B07 = zero_band
+        B08 = sample["image"][3]
+        B8A = zero_band
+        B09 = zero_band
+        B11 = sample["image"][4]
+        B12 = sample["image"][5]
+
+        sample["image"] = torch.stack(
+            [B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12], dim=0
+        )
+        return sample
+
+
 class EarthSurfaceWater(NonGeoDataset):
     """Earth Surface Water dataset.
 
@@ -43,7 +66,13 @@ class EarthSurfaceWater(NonGeoDataset):
     band_sets = ("all", "rgb")
 
     def __init__(
-        self, root, split="train", bands="all", transforms=None, pad_sizes=True
+        self,
+        root,
+        split="train",
+        bands="all",
+        transforms=None,
+        pad_sizes=True,
+        pad_bands=False,
     ):
         assert split in self.splits
         assert bands in self.band_sets
@@ -52,6 +81,8 @@ class EarthSurfaceWater(NonGeoDataset):
         self.bands = bands
         self.transforms = transforms
         self.pad_sizes = pad_sizes
+        self.pad_bands = pad_bands
+        self.pad_bands_transform = PadMissingBands()
         self.load_files()
 
     def load_files(self):
@@ -105,6 +136,9 @@ class EarthSurfaceWater(NonGeoDataset):
         if self.transforms:
             sample = self.transforms(sample)
 
+        if self.bands != "rgb" and self.pad_bands:
+            sample = self.pad_bands_transform(sample)
+
         return sample
 
     def __len__(self):
@@ -148,6 +182,7 @@ class EarthSurfaceWater(NonGeoDataset):
 
 
 class EarthSurfaceWaterDataModule(NonGeoDataModule):
+    """
     means = (
         torch.tensor([771.4490, 989.0422, 975.8994, 2221.6182, 1854.8079, 1328.8887])
         / 10000.0
@@ -156,12 +191,93 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
         torch.tensor([738.8903, 812.4620, 1000.6935, 1314.1964, 1384.8275, 1225.1549])
         / 10000.0
     )
+    """
+
+    means = (
+        torch.tensor(
+            [
+                340.76769064,
+                429.9430203,
+                614.21682446,
+                590.23569706,
+                950.68368468,
+                1792.46290469,
+                2075.46795189,
+                2218.94553375,
+                2266.46036911,
+                2246.0605464,
+                1594.42694882,
+                1009.32729131,
+            ]
+        )
+        / 10000.0
+    )
+    stds = (
+        torch.tensor(
+            [
+                554.81258967,
+                572.41639287,
+                582.87945694,
+                675.88746967,
+                729.89827633,
+                1096.01480586,
+                1273.45393088,
+                1365.45589904,
+                1356.13789355,
+                1302.3292881,
+                1079.19066363,
+                818.86747235,
+            ]
+        )
+        / 10000.0
+    )
+
+    padded_means = (
+        torch.tensor(
+            [
+                0.0,
+                771.4490,
+                989.0422,
+                975.8994,
+                0.0,
+                0.0,
+                0.0,
+                2221.6182,
+                0.0,
+                0.0,
+                1854.8079,
+                1328.8887,
+            ]
+        )
+        / 10000.0
+    )
+    padded_stds = (
+        torch.tensor(
+            [
+                10000.0,
+                738.8903,
+                812.4620,
+                1000.6935,
+                10000.0,
+                10000.0,
+                10000.0,
+                1314.1964,
+                10000.0,
+                10000.0,
+                1384.8275,
+                1225.1549,
+            ]
+        )
+        / 10000.0
+    )
 
     def __init__(
         self,
         image_size: int = 256,
         batch_size: int = 64,
         num_workers: int = 0,
+        means: Optional[list[float]] = None,
+        stds: Optional[list[float]] = None,
         train_fraction: Optional[float] = None,
         seed: int = 42,
         **kwargs,
@@ -172,8 +288,17 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
             self.mean = self.means[[3, 2, 1]]
             self.std = self.stds[[3, 2, 1]]
         else:
-            self.mean = self.means
-            self.std = self.stds
+            if "pad_bands" in kwargs and kwargs["pad_bands"]:
+                self.mean = self.padded_means
+                self.std = self.padded_stds
+            else:
+                self.mean = self.means
+                self.std = self.stds
+
+        if means is not None:
+            self.mean = torch.tensor(means) / 10000.0
+        if stds is not None:
+            self.std = torch.tensor(stds) / 10000.0
 
         self.image_size = image_size
         self.train_fraction = train_fraction
@@ -207,6 +332,7 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
     def setup(self, stage=None):
         if stage in ["fit"]:
             ds = self.dataset_class(split="train", **self.kwargs)
+            print("Train set length:", len(ds))
             if self.train_fraction is not None:
                 ds = get_fraction_dataset(ds, self.train_fraction, self.seed)
             self.train_dataset = ds
