@@ -44,6 +44,7 @@ def main(args):
         config.trainer, logger=logger, callbacks=callbacks, devices=devices
     )
     trainer.fit(module, datamodule)
+    trainer.test(datamodule=datamodule, ckpt_path="best")
 
 
 if __name__ == "__main__":
