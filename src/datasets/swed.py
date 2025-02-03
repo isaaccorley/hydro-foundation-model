@@ -204,9 +204,9 @@ class SWEDDataModule(NonGeoDataModule):
 
         self.train_aug = K.AugmentationSequential(
             K.Normalize(mean=self.mean, std=self.std),
-            # K.RandomResizedCrop(
-            #     size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
-            # ),
+            K.RandomResizedCrop(
+                size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
+            ),
             K.RandomHorizontalFlip(p=0.5),
             K.RandomVerticalFlip(p=0.5),
             data_keys=None,

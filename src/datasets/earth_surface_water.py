@@ -94,32 +94,19 @@ class EarthSurfaceWater(NonGeoDataset):
         self.load_files()
 
     def load_files(self):
-        if self.use_patched_version:
-            split_dir = f"{self.split_to_directory[self.split]}-patched"
-            img_root = os.path.join(
-                self.root, f"{split_dir}_scene"
-            )
-            mask_root = os.path.join(
-                self.root, f"{split_dir}_truth"
-            )
-            for fn in sorted(os.listdir(img_root)):
-                image_fn = os.path.join(img_root, fn)
-                mask_fn = os.path.join(mask_root, fn.replace("image", "mask"))
-                self.filenames.append((image_fn, mask_fn))
-        else:
-            img_root = os.path.join(
-                self.root, self.directory, f"{self.split_to_directory[self.split]}_scene"
-            )
-            mask_root = os.path.join(
-                self.root, self.directory, f"{self.split_to_directory[self.split]}_truth"
-            )
-            for fn in sorted(os.listdir(img_root)):
-                image_fn = os.path.join(img_root, fn)
-                parts = fn[:-4].split("_")
+        split_dir = f"{self.split_to_directory[self.split]}{'-patched' if self.use_patched_version else ''}"
+        img_root = os.path.join(self.root, f"{split_dir}_scene")
+        mask_root = os.path.join(self.root, f"{split_dir}_truth")
 
+        for fn in sorted(os.listdir(img_root)):
+            image_fn = os.path.join(img_root, fn)
+            if self.use_patched_version:
+                mask_fn = os.path.join(mask_root, fn.replace("image", "mask"))
+            else:
+                parts = fn[:-4].split("_")
                 idx = "_".join(parts[:-2])
                 mask_fn = os.path.join(mask_root, f"{idx}_{parts[-1]}_Truth.tif")
-                self.filenames.append((image_fn, mask_fn))
+            self.filenames.append((image_fn, mask_fn))
 
     def load_image(self, path):
         with rasterio.open(path) as f:
