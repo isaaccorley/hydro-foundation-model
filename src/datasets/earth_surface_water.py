@@ -332,10 +332,10 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
     def setup(self, stage=None):
         if stage in ["fit"]:
             ds = self.dataset_class(split="train", **self.kwargs)
-            print("Train set length:", len(ds))
             if self.train_fraction is not None:
                 ds = get_fraction_dataset(ds, self.train_fraction, self.seed)
             self.train_dataset = ds
+            print("Train set length:", len(ds))
         if stage in ["fit", "validate"]:
             self.val_dataset = self.dataset_class(split="test", **self.kwargs)
         if stage in ["test"]:
