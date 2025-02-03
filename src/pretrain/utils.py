@@ -13,7 +13,9 @@ import numpy as np
 from scipy import interpolate
 
 
-def load_checkpoint(config, model, optimizer, lr_scheduler, scaler, logger):
+def load_checkpoint(
+    config, model, optimizer=None, lr_scheduler=None, scaler=None, logger=None
+):
     logger.info(f">>>>>>>>>> Resuming from {config.MODEL.RESUME} ..........")
     if config.MODEL.RESUME.startswith("https"):
         checkpoint = torch.hub.load_state_dict_from_url(
@@ -32,7 +34,8 @@ def load_checkpoint(config, model, optimizer, lr_scheduler, scaler, logger):
         )
 
     msg = model.load_state_dict(checkpoint["model"], strict=False)
-    logger.info(msg)
+    if logger is not None:
+        logger.info(msg)
 
     max_accuracy = 0.0
     if (
@@ -42,17 +45,21 @@ def load_checkpoint(config, model, optimizer, lr_scheduler, scaler, logger):
         and "scaler" in checkpoint
         and "epoch" in checkpoint
     ):
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-        scaler.load_state_dict(checkpoint["scaler"])
+        if optimizer is not None:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+        if lr_scheduler is not None:
+            lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        if scaler is not None:
+            scaler.load_state_dict(checkpoint["scaler"])
 
         config.defrost()
         config.TRAIN.START_EPOCH = checkpoint["epoch"] + 1
         config.freeze()
 
-        logger.info(
-            f"=> loaded successfully '{config.MODEL.RESUME}' (epoch {checkpoint['epoch']})"
-        )
+        if logger is not None:
+            logger.info(
+                f"=> loaded successfully '{config.MODEL.RESUME}' (epoch {checkpoint['epoch']})"
+            )
         if "max_accuracy" in checkpoint:
             max_accuracy = checkpoint["max_accuracy"]
         else:

@@ -111,6 +111,24 @@ class SimMIM(nn.Module):
         self.in_chans = in_chans
         self.patch_size = patch_size
 
+    @torch.no_grad()
+    def reconstruct(self, x, mask):
+        z = self.encoder(x, mask)
+        x_rec = self.decoder(z)
+
+        mask = (
+            mask.repeat_interleave(self.patch_size, 1)
+            .repeat_interleave(self.patch_size, 2)
+            .unsqueeze(1)
+            .contiguous()
+        )
+
+        # norm target as prompted
+        if self.config.NORM_TARGET.ENABLE:
+            x = norm_targets(x, self.config.NORM_TARGET.PATCH_SIZE)
+
+        return x_rec, mask
+
     def forward(self, x, mask):
         z = self.encoder(x, mask)
         x_rec = self.decoder(z)
