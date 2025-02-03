@@ -180,6 +180,8 @@ class SWEDDataModule(NonGeoDataModule):
         num_workers: int = 0,
         train_fraction: Optional[float] = None,
         seed: int = 42,
+        means: Optional[list[float]] = None,
+        stds: Optional[list[float]] = None,
         **kwargs,
     ) -> None:
         super().__init__(SWED, batch_size, num_workers, **kwargs)
@@ -191,15 +193,20 @@ class SWEDDataModule(NonGeoDataModule):
             self.mean = self.means
             self.std = self.stds
 
+        if means is not None:
+            self.mean = torch.tensor(means)
+        if stds is not None:
+            self.std = torch.tensor(stds)
+
         self.image_size = image_size
         self.train_fraction = train_fraction
         self.seed = seed
 
         self.train_aug = K.AugmentationSequential(
             K.Normalize(mean=self.mean, std=self.std),
-            K.RandomResizedCrop(
-                size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
-            ),
+            # K.RandomResizedCrop(
+            #     size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
+            # ),
             K.RandomHorizontalFlip(p=0.5),
             K.RandomVerticalFlip(p=0.5),
             data_keys=None,

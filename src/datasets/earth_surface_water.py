@@ -65,17 +65,22 @@ class EarthSurfaceWater(NonGeoDataset):
     }
     band_sets = ("all", "rgb")
 
+    PAD_SHAPE = (1536, 1792)
+
     def __init__(
         self,
         root,
         split="train",
         bands="all",
         transforms=None,
-        pad_sizes=True,
+        pad_sizes=False,
         pad_bands=False,
+        use_patched_version=True,
     ):
         assert split in self.splits
         assert bands in self.band_sets
+        if use_patched_version:
+            assert not pad_sizes, "Patched version doesn't support pad_sizes"
         self.root = root
         self.split = split
         self.bands = bands
@@ -83,30 +88,45 @@ class EarthSurfaceWater(NonGeoDataset):
         self.pad_sizes = pad_sizes
         self.pad_bands = pad_bands
         self.pad_bands_transform = PadMissingBands()
+        self.use_patched_version = use_patched_version
+        self.filenames = []
+
         self.load_files()
 
     def load_files(self):
-        self.filenames = []
-        img_root = os.path.join(
-            self.root, self.directory, f"{self.split_to_directory[self.split]}_scene"
-        )
-        mask_root = os.path.join(
-            self.root, self.directory, f"{self.split_to_directory[self.split]}_truth"
-        )
-        for fn in sorted(os.listdir(img_root)):
-            image_fn = os.path.join(img_root, fn)
-            parts = fn[:-4].split("_")
+        if self.use_patched_version:
+            split_dir = f"{self.split_to_directory[self.split]}-patched"
+            img_root = os.path.join(
+                self.root, f"{split_dir}_scene"
+            )
+            mask_root = os.path.join(
+                self.root, f"{split_dir}_truth"
+            )
+            for fn in sorted(os.listdir(img_root)):
+                image_fn = os.path.join(img_root, fn)
+                mask_fn = os.path.join(mask_root, fn.replace("image", "mask"))
+                self.filenames.append((image_fn, mask_fn))
+        else:
+            img_root = os.path.join(
+                self.root, self.directory, f"{self.split_to_directory[self.split]}_scene"
+            )
+            mask_root = os.path.join(
+                self.root, self.directory, f"{self.split_to_directory[self.split]}_truth"
+            )
+            for fn in sorted(os.listdir(img_root)):
+                image_fn = os.path.join(img_root, fn)
+                parts = fn[:-4].split("_")
 
-            idx = "_".join(parts[:-2])
-            mask_fn = os.path.join(mask_root, f"{idx}_{parts[-1]}_Truth.tif")
-            self.filenames.append((image_fn, mask_fn))
+                idx = "_".join(parts[:-2])
+                mask_fn = os.path.join(mask_root, f"{idx}_{parts[-1]}_Truth.tif")
+                self.filenames.append((image_fn, mask_fn))
 
     def load_image(self, path):
         with rasterio.open(path) as f:
             image = f.read()
         image = torch.from_numpy(image)
         if self.pad_sizes:
-            pad = torch.zeros((6, 1440, 1568)).float()
+            pad = torch.zeros((6, self.PAD_SHAPE[0], self.PAD_SHAPE[1])).float()
             pad[:, : image.shape[1], : image.shape[2]] = image
             return pad
         else:
@@ -117,7 +137,7 @@ class EarthSurfaceWater(NonGeoDataset):
             mask = f.read().squeeze()
         mask = torch.from_numpy(mask)
         if self.pad_sizes:
-            pad = torch.zeros((1440, 1568)).long()
+            pad = torch.zeros(self.PAD_SHAPE).long()
             pad[: mask.shape[0], : mask.shape[1]] = mask
             return pad
         else:
@@ -210,7 +230,6 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
                 1009.32729131,
             ]
         )
-        / 10000.0
     )
     stds = (
         torch.tensor(
@@ -229,7 +248,6 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
                 818.86747235,
             ]
         )
-        / 10000.0
     )
 
     padded_means = (
@@ -249,7 +267,6 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
                 1328.8887,
             ]
         )
-        / 10000.0
     )
     padded_stds = (
         torch.tensor(
@@ -268,7 +285,6 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
                 1225.1549,
             ]
         )
-        / 10000.0
     )
 
     def __init__(
@@ -296,16 +312,15 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
                 self.std = self.stds
 
         if means is not None:
-            self.mean = torch.tensor(means) / 10000.0
+            self.mean = torch.tensor(means)
         if stds is not None:
-            self.std = torch.tensor(stds) / 10000.0
+            self.std = torch.tensor(stds)
 
         self.image_size = image_size
         self.train_fraction = train_fraction
         self.seed = seed
 
         self.train_aug = K.AugmentationSequential(
-            K.Normalize(mean=0.0, std=10000.0),
             K.Normalize(mean=self.mean, std=self.std),
             K.RandomResizedCrop(
                 size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
@@ -315,13 +330,11 @@ class EarthSurfaceWaterDataModule(NonGeoDataModule):
             data_keys=None,
         )
         self.val_aug = K.AugmentationSequential(
-            K.Normalize(mean=0.0, std=10000.0),
             K.Normalize(mean=self.mean, std=self.std),
             K.Resize((image_size, image_size)),
             data_keys=None,
         )
         self.test_aug = K.AugmentationSequential(
-            K.Normalize(mean=0.0, std=10000.0),
             K.Normalize(mean=self.mean, std=self.std),
             K.Resize((image_size, image_size)),
             data_keys=None,

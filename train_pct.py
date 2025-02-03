@@ -28,18 +28,8 @@ def main(args):
 
     datamodule = instantiate(config.datamodule, **dm_kwargs)
 
-    if args.logger == "mlflow":
-        run_name = (
-            "swinv2_hydro" if config.module.model == "hydro" else "swinv2_imagenet"
-        )
-        run_name = f"{run_name}_{int(args.limit_train_batches * 100)}"
-        logger = MLFlowLogger(
-            experiment_name=config.experiment_name, run_name=run_name, log_model=False
-        )
-        hparams = dict(config)
-        hparams["train_pct"] = args.limit_train_batches
-        logger.log_hyperparams(hparams)
-    else:
+    logger = None
+    if args.logger == "tensorboard":
         logger = TensorBoardLogger(
             save_dir="lightning_logs", name=config.experiment_name
         )
@@ -52,9 +42,10 @@ def main(args):
         callbacks=callbacks,
         devices=devices,
         max_epochs=args.max_epochs,
+        enable_checkpointing=False,
     )
     trainer.fit(module, datamodule)
-    trainer.test(datamodule=datamodule, ckpt_path="best")
+    trainer.test(datamodule=datamodule, ckpt_path="last")
 
 
 if __name__ == "__main__":
@@ -68,7 +59,7 @@ if __name__ == "__main__":
         help="Optionally override root from config",
     )
     parser.add_argument(
-        "--logger", type=str, choices=["tensorboard", "mlflow"], default="mlflow"
+        "--logger", type=str, choices=["tensorboard"], default=None
     )
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--device", type=int, default=None)

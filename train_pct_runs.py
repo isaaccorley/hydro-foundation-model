@@ -49,9 +49,10 @@ def main(args):
                 callbacks=callbacks,
                 devices=devices,
                 max_epochs=args.max_epochs,
+                enable_checkpointing=False,
             )
             trainer.fit(module, datamodule)
-            run_metrics = trainer.test(datamodule=datamodule)  # uses the last model
+            run_metrics = trainer.test(datamodule=datamodule, ckpt_path="last")  # uses the last model
             run_metrics = run_metrics[0]
             run_metrics["train_fraction"] = frac
             run_metrics["seed"] = seed
