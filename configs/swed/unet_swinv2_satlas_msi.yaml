@@ -1,8 +1,8 @@
 module:
     _target_: src.models.segmentation.CustomSemanticSegmentationTask
-    model: hydro
-    backbone: swinv2-hydro
-    weights: checkpoints/swin-v2-msi/config.yaml
+    model: satlas
+    backbone: swinv2-satlas
+    weights: pretrained
     in_channels: 12
     num_classes: 2
     lr: 1E-4
@@ -28,4 +28,4 @@ trainer:
     log_every_n_steps: 100
 
 image_size: 256
-experiment_name: hydro_swed_msi
+experiment_name: hydro_swed_unet_swinv2-satlas_msi

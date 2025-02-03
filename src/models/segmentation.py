@@ -67,7 +67,15 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
                 in_channels=in_channels,
                 classes=num_classes,
             )
+        elif model.startswith("satlas"):
+            from .unet import SwinV2UNet
 
+            self.model = SwinV2UNet(
+                encoder="swinv2-satlas",
+                encoder_weights=weights,
+                in_channels=in_channels,
+                classes=num_classes,
+            )
         else:
             raise ValueError(
                 f"Model type '{model}' is not valid. "
