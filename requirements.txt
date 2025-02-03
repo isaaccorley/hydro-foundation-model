@@ -4,5 +4,6 @@ ruff
 scipy
 termcolor
 mlflow
+pandas
 azure-ai-ml
 azure-identity

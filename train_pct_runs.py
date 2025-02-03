@@ -1,7 +1,7 @@
 import argparse
 import gc
-import json
 
+import pandas as pd
 import lightning
 import mlflow  # noqa: F401
 import torch
@@ -62,13 +62,14 @@ def main(args):
         )
         trainer.fit(module, datamodule)
         run_metrics = trainer.test(datamodule=datamodule, ckpt_path="best")
-        metrics[frac] = run_metrics
+        metrics[frac] = run_metrics[0]
         del module, datamodule, trainer
         torch.cuda.empty_cache()
         gc.collect()
 
-    with open(args.output, "w") as f:
-        json.dump(metrics, f)
+    metrics = pd.DataFrame.from_dict(metrics, orient="index")
+    metrics.rename_axis("train_fraction", inplace=True)
+    metrics.to_csv(args.output.replace(".json", ".csv"))
 
 
 if __name__ == "__main__":
@@ -94,6 +95,6 @@ if __name__ == "__main__":
         default=[0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.005, 0.001, 0.05, 0.01],
     )
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--output", type=str, default="metrics.json")
+    parser.add_argument("--output", type=str, default="metrics.csv")
     args = parser.parse_args()
     main(args)
