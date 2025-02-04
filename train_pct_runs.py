@@ -50,6 +50,7 @@ def main(args):
                 devices=devices,
                 max_epochs=args.max_epochs,
                 enable_checkpointing=False,
+                check_val_every_n_epoch=10,
             )
             trainer.fit(module, datamodule)
             run_metrics = trainer.test(datamodule=datamodule, ckpt_path="last")  # uses the last model
