@@ -1,6 +1,6 @@
 from typing import Sequence, Callable
 from functools import partial
-import os
+import math
 
 import timm
 import torch
@@ -10,16 +10,51 @@ from segmentation_models_pytorch.base.model import SegmentationModel
 from timm.layers import LayerNorm2d
 from einops import rearrange
 
-import torchgeo.models  #swin_v2_b, Swin_V2_B_Weights
+import torchgeo.models  # swin_v2_b, Swin_V2_B_Weights
 
 from .swin_transformer_v2 import SwinTransformerV2
 from .load_pretrained import swin_v2
+
+
+def repeat_conv2d_weights(conv: nn.Conv2d, num_channels: int) -> nn.Conv2d:
+    """Repeats the weights of a nn.Conv2d layer to match a new number of input channels in a new nn.Conv2d layer.
+
+    E.g. if RGB weights and new input needs 7 channels, we repeat the RGB weights like RGBRGBR to match the 7 channels.
+
+    Implementation inspired from timm https://timm.fast.ai/models#Case-2:-When-the-number-of-input-channels-is-not-1
+    """
+    new_conv = (
+        nn.Conv2d(
+            num_channels,
+            conv.out_channels,
+            conv.kernel_size,
+            conv.stride,
+            conv.padding,
+            conv.dilation,
+            conv.groups,
+            conv.bias is not None,
+            conv.padding_mode,
+        )
+        .to(conv.weight.dtype)
+        .to(conv.weight.device)
+    )
+    repeat = int(math.ceil(num_channels / conv.in_channels))
+
+    with torch.no_grad():
+        new_conv.weight.data = conv.weight.repeat(1, repeat, 1, 1)[
+            :, :num_channels, :, :
+        ]
+        if conv.bias is not None:
+            new_conv.bias.data = conv.bias
+
+    return new_conv
+
 
 class SwinBackbone(torch.nn.Module):
     """Mostly from https://github.com/allenai/satlaspretrain_models/blob/main/satlaspretrain_models/models/backbones.py#L4"""
 
     def __init__(self, backbone, num_channels: int = 9):
-        super(SwinBackbone, self).__init__()
+        super().__init__()
         self.backbone = backbone
         self.out_channels = [
             [4, 128],
@@ -29,7 +64,11 @@ class SwinBackbone(torch.nn.Module):
         ]
 
         if num_channels != 9:
-            self.backbone.features[0][0] = torch.nn.Conv2d(num_channels, self.backbone.features[0][0].out_channels, kernel_size=(4, 4), stride=(4, 4))
+            conv = self.backbone.features[0][0]
+            print(
+                f"Repeating weights for {conv.in_channels} channels to {num_channels} channels"
+            )
+            self.backbone.features[0][0] = repeat_conv2d_weights(conv, num_channels)
 
     def forward(self, x):
         outputs = []
@@ -37,7 +76,6 @@ class SwinBackbone(torch.nn.Module):
             x = layer(x)
             outputs.append(x.permute(0, 3, 1, 2))
         return [outputs[-7], outputs[-5], outputs[-3], outputs[-1]]
-
 
 
 class SwinV2UNet(SegmentationModel):
@@ -59,12 +97,16 @@ class SwinV2UNet(SegmentationModel):
             self.encoder_channels = self.encoder.dims[:4]
         elif encoder == "swinv2-satlas":
             if in_channels == 3:
-                model = torchgeo.models.swin_v2_b(torchgeo.models.Swin_V2_B_Weights.SENTINEL2_SI_RGB_SATLAS)
-                self.encoder = SwinBackbone(model, 12)
+                model = torchgeo.models.swin_v2_b(
+                    torchgeo.models.Swin_V2_B_Weights.SENTINEL2_SI_RGB_SATLAS
+                )
+                self.encoder = SwinBackbone(model, in_channels)
                 self.encoder_channels = [val[1] for val in self.encoder.out_channels]
             else:
-                model = torchgeo.models.swin_v2_b(torchgeo.models.Swin_V2_B_Weights.SENTINEL2_SI_MS_SATLAS)
-                self.encoder = SwinBackbone(model, 12)
+                model = torchgeo.models.swin_v2_b(
+                    torchgeo.models.Swin_V2_B_Weights.SENTINEL2_SI_MS_SATLAS
+                )
+                self.encoder = SwinBackbone(model, in_channels)
                 self.encoder_channels = [val[1] for val in self.encoder.out_channels]
         else:
             self.encoder = timm.create_model(

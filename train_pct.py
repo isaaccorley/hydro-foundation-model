@@ -5,7 +5,7 @@ import mlflow  # noqa: F401
 import torch
 from hydra.utils import instantiate
 from lightning.pytorch.callbacks import LearningRateMonitor
-from lightning.pytorch.loggers import MLFlowLogger, TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger
 from omegaconf import OmegaConf
 
 import src  # noqa: F401
@@ -58,9 +58,7 @@ if __name__ == "__main__":
         required=False,
         help="Optionally override root from config",
     )
-    parser.add_argument(
-        "--logger", type=str, choices=["tensorboard"], default=None
-    )
+    parser.add_argument("--logger", type=str, choices=["tensorboard"], default=None)
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--device", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=None)
