@@ -13,7 +13,7 @@ MODEL:
     WINDOW_SIZE: 16
     IN_CHANS: 12
 DATA:
-  DATA_PATH: /workspace/storage/data/hydro/images/
+  DATA_PATH: data/waterbenders/
   BANDS: all
   CHANNELS: 12
   IMG_SIZE: 256
@@ -30,7 +30,7 @@ TRAIN:
   LR_SCHEDULER:
     NAME: 'multistep'
     GAMMA: 0.1
-    MULTISTEPS: [700,]
+    MULTISTEPS: [100,150,200,700,]
 PRINT_FREQ: 100
 SAVE_FREQ: 5
 TAG: hydro_simmim_pretrain_swinv2_base_img256_window16_800ep

@@ -63,8 +63,8 @@ class SwinBackbone(torch.nn.Module):
             [32, 1024],
         ]
 
-        if num_channels != 9:
-            conv = self.backbone.features[0][0]
+        conv = self.backbone.features[0][0]
+        if conv.in_channels != num_channels:
             print(
                 f"Repeating weights for {conv.in_channels} channels to {num_channels} channels"
             )

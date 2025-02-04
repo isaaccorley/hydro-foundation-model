@@ -18,7 +18,7 @@ import torch.distributed as dist
 import torch.cuda.amp as amp
 from timm.utils import AverageMeter
 
-from src.models import build_model
+from src.models.build import build_model
 from src.pretrain import (
     build_loader_simmim,
     get_config,
@@ -239,6 +239,8 @@ def train_one_epoch(config, model, data_loader, optimizer, epoch, lr_scheduler, 
 
 if __name__ == "__main__":
     _, config = parse_option()
+
+    print(config)
 
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         rank = int(os.environ["RANK"])
