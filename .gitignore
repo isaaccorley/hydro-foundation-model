@@ -2,6 +2,7 @@ data/
 benchmark-datasets/
 lightning_logs/
 output/
+results/
 *.pth
 
 # Byte-compiled / optimized / DLL files
