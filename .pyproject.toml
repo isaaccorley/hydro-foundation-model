@@ -1,27 +1,37 @@
-[tool.black]
-target-version = ["py39", "py310"]
-color = true
-skip_magic_trailing_comma = true
-exclude = '''
-(
-/(
-    \.eggs
-    | \.git
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-    | Swin-Transformer
-)/
-)
-'''
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src"]
+fix = true
+show-fixes = true
+force-exclude = true
 
-[tool.isort]
-profile = "black"
-known_first_party = ["src"]
-skip_gitignore = true
-skip_glob = "Swin-Transformer/*"
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+extend-select = ["B", "Q", "I", "UP"]
+ignore = [
+    "E203",
+    "E402",
+    "F821",
+    "F405",
+    "F403",
+    "E731",
+    "B006",
+    "B008",
+    "B904",
+    "D100",
+    "D101",
+    "D102",
+    "D104",
+    "D212",
+    "D415"
+]
+
+[tool.ruff.lint.pylint]
+max-returns = 5
+max-args = 25
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false

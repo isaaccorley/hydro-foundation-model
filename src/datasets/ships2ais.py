@@ -1,9 +1,16 @@
 import glob
 import os
+from typing import Optional
 
-import lightning
+import kornia.augmentation as K
+import numpy as np
 import rasterio
 import torch
+import matplotlib.pyplot as plt
+from torchgeo.datamodules.geo import NonGeoDataModule
+
+from .transforms import Denormalize
+from .utils import get_fraction_dataset
 
 
 class ShipS2AIS(torch.utils.data.Dataset):
@@ -22,6 +29,7 @@ class ShipS2AIS(torch.utils.data.Dataset):
 
     directory = "Sentinel-2-database-for-ship-detection"
     splits = dict(train="train", test="test")
+
     classes = ["neg", "ships"]
     band_sets = ["all", "rgb"]
     bands_names = ["B02", "B03", "B04", "B11", "B12"]
@@ -34,6 +42,9 @@ class ShipS2AIS(torch.utils.data.Dataset):
         self.bands = bands
         self.transforms = transforms
         self.images, self.targets = self.load_files(root, split)
+
+    def __len__(self):
+        return len(self.images)
 
     def load_files(self, root, split):
         folder = os.path.join(root, self.directory, self.splits[split])
@@ -51,9 +62,6 @@ class ShipS2AIS(torch.utils.data.Dataset):
         x = torch.from_numpy(x)
         return x
 
-    def __len__(self):
-        return len(self.images)
-
     def __getitem__(self, index):
         path, label = self.images[index], self.targets[index]
         image = self.load_image(path)
@@ -67,44 +75,80 @@ class ShipS2AIS(torch.utils.data.Dataset):
 
         return dict(image=image, label=label)
 
+    def plot(self, sample):
+        image, label = sample["image"], sample["label"]
+        if self.bands != "rgb":
+            image = image[[2, 1, 0]]
+        image = image.numpy().transpose(1, 2, 0)
+        fig = plt.figure()
+        plt.imshow(np.clip(image / 3000, 0, 1))
+        plt.title(self.classes[label])
+        plt.tight_layout()
+        return fig
 
-class ShipS2AISDataModule(lightning.LightningDataModule):
+
+class ShipS2AISDataModule(NonGeoDataModule):
+    means = torch.tensor([1570.0336, 1171.0029, 909.0641, 684.6077, 575.1781]) / 10000.0
+    stds = torch.tensor([746.2094, 672.5553, 673.0739, 815.1528, 666.2916]) / 10000.0
+
     def __init__(
-        self, root, bands="all", transforms=None, batch_size=32, num_workers=8, seed=0
-    ):
-        self.root = root
-        self.bands = bands
-        self.transforms = transforms
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.generator = torch.Generator().manual_seed(seed)
+        self,
+        image_size: int = 256,
+        batch_size: int = 64,
+        num_workers: int = 0,
+        train_fraction: Optional[float] = None,
+        seed: int = 42,
+        **kwargs,
+    ) -> None:
+        super().__init__(ShipS2AIS, batch_size, num_workers, **kwargs)
 
-    def setup(self):
-        self.train_dataset = ShipS2AIS(
-            root=self.root,
-            split="train",
-            bands=self.bands,
-            transforms=self.transforms,
+        if "bands" in kwargs and kwargs["bands"] == "rgb":
+            self.mean = self.means[[3, 2, 1]]
+            self.std = self.stds[[3, 2, 1]]
+        else:
+            self.mean = self.means
+            self.std = self.stds
+
+        self.image_size = image_size
+        self.train_fraction = train_fraction
+        self.seed = seed
+
+        self.train_aug = K.AugmentationSequential(
+            K.Normalize(mean=0.0, std=10000.0),
+            K.Normalize(mean=self.mean, std=self.std),
+            K.RandomResizedCrop(
+                size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
+            ),
+            K.RandomHorizontalFlip(p=0.5),
+            K.RandomVerticalFlip(p=0.5),
+            data_keys=None,
         )
-        self.test_dataset = ShipS2AIS(
-            root=self.root,
-            split="test",
-            bands=self.bands,
-            transforms=self.transforms
+        self.val_aug = K.AugmentationSequential(
+            K.Normalize(mean=0.0, std=10000.0),
+            K.Normalize(mean=self.mean, std=self.std),
+            K.Resize((image_size, image_size)),
+            data_keys=None,
+        )
+        self.test_aug = K.AugmentationSequential(
+            K.Normalize(mean=0.0, std=10000.0),
+            K.Normalize(mean=self.mean, std=self.std),
+            K.Resize((image_size, image_size)),
+            data_keys=None,
         )
 
-    def train_dataloader(self):
-        return torch.utils.data.DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=self.num_workers,
-        )
+        self.denormalize = Denormalize(self.train_aug)
 
-    def test_dataloader(self):
-        return torch.utils.data.DataLoader(
-            self.test_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-        )
+    def setup(self, stage=None):
+        if stage in ["fit"]:
+            ds = self.dataset_class(split="train", **self.kwargs)
+            if self.train_fraction is not None:
+                ds = get_fraction_dataset(ds, self.train_fraction, self.seed)
+            self.train_dataset = ds
+        if stage in ["fit", "validate"]:
+            self.val_dataset = self.dataset_class(split="test", **self.kwargs)
+        if stage in ["test"]:
+            self.test_dataset = self.dataset_class(split="test", **self.kwargs)
+
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        batch = super().on_after_batch_transfer(batch, dataloader_idx)
+        return batch

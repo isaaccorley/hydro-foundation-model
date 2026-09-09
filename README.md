@@ -18,7 +18,11 @@ There are many foundation models for remote sensing but nearly all of them focus
 
 We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder using the **SimMIM** method from the paper, ["SimMIM: A Simple Framework for Masked Image Modeling"](https://arxiv.org/abs/2111.09886), which is an efficient variation of the [Masked Autoencoder (MAE)](https://arxiv.org/abs/2111.06377) self-supervised learning framework.
 
-Our pretraining dataset consists of 50k sampled 256x256 Sentinel-2 patches containing water from around the globe.
+Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe. The images are from the Sentinel-2 L2A STAC collection hosted on the Planetary Computer. The bands are: (B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12).
+
+### Dataset Download
+
+The dataset is hosted on HuggingFace and can be downloaded [here](https://huggingface.co/datasets/isaaccorley/Hydro).
 
 ### Checkpoints
 
@@ -50,22 +54,12 @@ Our pretraining dataset consists of 50k sampled 256x256 Sentinel-2 patches conta
 
 ### Usage
 
-Clone the repo with submodules
-
-```bash
-git clone --recurse-submodules https://github.com/isaaccorley/hydro-foundation-model.git
-cd Swin-Transformer
-checkout hydro
-cd ..
-```
-
 This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
 
-To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/hydro/` folder.
+To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/pretrain/` folder.
 
 ```bash
-cd Swin-Transformer
-bash hydro_pretrain.sh
+python pretrain.py
 ```
 
 Loading a pretrained model as a classifier. Make sure you define MODEL.PRETRAINED as the path to your downloaded checkpoint on your config like below:
@@ -122,6 +116,8 @@ An example notebook with this code is available at `embed.ipynb`.
 ### Evaluation
 
 We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo currently contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
+
+See the train.py script for an example.
 
 ### Cite
 

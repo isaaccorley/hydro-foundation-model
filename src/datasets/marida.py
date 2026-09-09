@@ -11,7 +11,8 @@ from matplotlib.colors import ListedColormap
 from torchgeo.datamodules.geo import NonGeoDataModule
 from torchgeo.datasets import NonGeoDataset
 from torchgeo.datasets.utils import percentile_normalization
-from torchgeo.transforms import AugmentationSequential
+
+from .transforms import Denormalize
 
 
 class MARIDA(NonGeoDataset):
@@ -121,6 +122,13 @@ class MARIDA(NonGeoDataset):
         image = self.load_image(self.images[idx])
         if self.bands == "rgb":
             image = image[(3, 2, 1), ...]
+
+        if self.split == "train" and idx == 204:
+            image[torch.isnan(image)] = 0
+        elif self.split == "val" and idx in (169, 170, 173):
+            image[torch.isnan(image)] = 0
+        elif self.split == "test" and idx in (287, 298, 309):
+            image[torch.isnan(image)] = 0
 
         mask = self.load_mask(self.masks[idx])
         # mask_conf = self.load_mask(self.conf_masks[idx])
@@ -232,7 +240,13 @@ class MARIDADataModule(NonGeoDataModule):
         ]
     )
 
-    def __init__(self, batch_size: int = 64, num_workers: int = 0, **kwargs) -> None:
+    def __init__(
+        self,
+        image_size: int = 256,
+        batch_size: int = 64,
+        num_workers: int = 0,
+        **kwargs,
+    ) -> None:
         super().__init__(MARIDA, batch_size, num_workers, **kwargs)
         if "bands" in kwargs and kwargs["bands"] == "rgb":
             self.mean = self.means[[3, 2, 1]]
@@ -241,17 +255,41 @@ class MARIDADataModule(NonGeoDataModule):
             self.mean = self.means
             self.std = self.stds
 
-        augmentations = [
+        self.image_size = image_size
+
+        self.train_aug = K.AugmentationSequential(
             K.Normalize(mean=self.mean, std=self.std),
-            K.RandomRotation(p=0.5, degrees=90),
+            K.RandomResizedCrop(
+                size=(image_size, image_size), scale=(0.8, 1.2), ratio=(1, 1), p=1.0
+            ),
             K.RandomHorizontalFlip(p=0.5),
             K.RandomVerticalFlip(p=0.5),
-        ]
+            data_keys=None,
+        )
+        self.val_aug = K.AugmentationSequential(
+            K.Normalize(mean=self.mean, std=self.std),
+            K.Resize((image_size, image_size)),
+            data_keys=None,
+        )
+        self.test_aug = K.AugmentationSequential(
+            K.Normalize(mean=self.mean, std=self.std),
+            K.Resize((image_size, image_size)),
+            data_keys=None,
+        )
 
-        self.train_aug = AugmentationSequential(
-            *augmentations,
-            data_keys=["image", "mask"],
-        )
-        self.aug = AugmentationSequential(
-            K.Normalize(mean=self.mean, std=self.std), data_keys=["image", "mask"]
-        )
+        self.denormalize = Denormalize(self.train_aug)
+
+    def setup(self, stage=None):
+        if stage in ["fit"]:
+            self.train_dataset = self.dataset_class(split="train", **self.kwargs)
+        if stage in ["fit", "validate"]:
+            self.val_dataset = self.dataset_class(split="test", **self.kwargs)
+        if stage in ["test"]:
+            self.test_dataset = self.dataset_class(split="test", **self.kwargs)
+
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        # Hack because kornia doesn't work with int masks yet (only float)
+        batch["mask"] = batch["mask"].float()
+        batch = super().on_after_batch_transfer(batch, dataloader_idx)
+        batch["mask"] = batch["mask"].long().squeeze(dim=1)
+        return batch

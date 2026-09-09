@@ -1,0 +1,34 @@
+module:
+    _target_: src.models.segmentation.CustomSemanticSegmentationTask
+    model: hydro
+    backbone: swinv2-hydro
+    weights: checkpoints/swin-v2-msi/config.yaml
+    in_channels: 12
+    num_classes: 2
+    lr: 1E-4
+    image_size: ${image_size}
+    loss: ce
+    tmax: 50
+    ignore_index: -1
+
+datamodule:
+    _target_: src.datasets.EarthSurfaceWaterDataModule
+    root: benchmark-datasets/earth_surface_water
+    bands: all
+    image_size: ${image_size}
+    batch_size: 16
+    num_workers: 16
+    pad_bands: True
+    means: [0.0, 429.9430203, 614.21682446, 590.23569706, 0.0, 0.0, 0.0, 2218.94553375, 0.0, 0.0, 1594.42694882, 1009.32729131]
+    stds: [10000.0, 572.41639287, 582.87945694, 675.88746967, 10000.0, 10000.0, 10000.0, 1365.45589904, 10000.0, 10000.0, 1079.19066363, 818.86747235]
+
+trainer:
+    _target_: lightning.Trainer
+    max_epochs: 100
+    accelerator: gpu
+    precision: 16-mixed
+    devices: 1
+    log_every_n_steps: 100
+
+image_size: 256
+experiment_name: hydro_earth_surface_water_msi

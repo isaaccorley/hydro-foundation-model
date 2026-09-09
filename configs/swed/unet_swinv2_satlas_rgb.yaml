@@ -1,0 +1,31 @@
+module:
+    _target_: src.models.segmentation.CustomSemanticSegmentationTask
+    model: satlas
+    backbone: swinv2-satlas
+    weights: pretrained
+    in_channels: 3
+    num_classes: 2
+    lr: 1E-4
+    image_size: ${image_size}
+    loss: ce
+    tmax: 50
+    ignore_index: -1
+
+datamodule:
+    _target_: src.datasets.SWEDDataModule
+    root: benchmark-datasets/SWED
+    bands: rgb
+    image_size: ${image_size}
+    batch_size: 16
+    num_workers: 16
+
+trainer:
+    _target_: lightning.Trainer
+    max_epochs: 100
+    accelerator: gpu
+    precision: 16-mixed
+    devices: 1
+    log_every_n_steps: 100
+
+image_size: 256
+experiment_name: hydro_swed_unet_swinv2-satlas_rgb
