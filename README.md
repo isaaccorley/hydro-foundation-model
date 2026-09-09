@@ -12,13 +12,17 @@ There are many foundation models for remote sensing but nearly all of them focus
 
 ### Progress
 
-<p align="center">
-    <img src="./assets/simmim.jpg" width="400"/><br/>
-</p>
+We pretrain [DINOv3](https://arxiv.org/abs/2508.10104) ViT-L/16 encoders on the Hydro dataset with the DINO self-distillation objective (student/teacher EMA, multi-crop), initialized from the satellite-pretrained DINOv3-SAT (`sat493m`) weights rather than from scratch. Three variants share one recipe and differ only in input bands:
 
-We pretrain a [Swin v2 Transformer](https://arxiv.org/abs/2111.09883) encoder using the **SimMIM** method from the paper, ["SimMIM: A Simple Framework for Masked Image Modeling"](https://arxiv.org/abs/2111.09886), which is an efficient variation of the [Masked Autoencoder (MAE)](https://arxiv.org/abs/2111.06377) self-supervised learning framework.
+| variant | bands | notes |
+|---|---|---|
+| `rgb` | B04, B03, B02 (8-bit quicklooks) | patch embedding used as-is |
+| `all` | all 12 L2A bands | patch embedding inflated 3→12; pretrained RGB filters kept on B04/B03/B02, B01 kept for bathymetry |
+| `landsat6` | B02, B03, B04, B08, B11, B12 | Landsat OLI band set, for transfer to Landsat / HLS |
 
-Our pretraining dataset consists of 100k sampled 256x256 Sentinel-2 patches containing water from around the globe. The images are from the Sentinel-2 L2A STAC collection hosted on the Planetary Computer. The bands are: (B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12).
+The earlier Swin v2 + SimMIM checkpoints (below) are kept as legacy baselines; the SimMIM pretraining code has been removed.
+
+Our pretraining dataset consists of ~106k sampled 256x256 Sentinel-2 L2A patches containing water from around the globe, from the Planetary Computer STAC collection. Bands: (B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12). Patches mix processing baselines, so roughly half carry the +1000 DN `BOA_ADD_OFFSET`; it is detected and removed per patch before normalization (`scripts/compute_hydro_stats.py`, `src/pretrain/stats.py`).
 
 ### Dataset Download
 
@@ -54,34 +58,29 @@ The dataset is hosted on HuggingFace and can be downloaded [here](https://huggin
 
 ### Usage
 
-This repo really only requires packages that torchgeo installs so go ahead and `pip install torchgeo`
+```bash
+pip install -r requirements.txt
+```
 
-To pretrain a model you can run the following. Note to change some parameters you can edit the config file in the `configs/pretrain/` folder.
+**Pretraining (DINO).** One entrypoint, pick the band preset; `--root` is the tif directory for MSI presets and the RGB quicklook directory for `rgb`:
 
 ```bash
-python pretrain.py
+python -m src.pretrain.train --bands rgb      --root /path/to/hydro/data_jpg
+python -m src.pretrain.train --bands all      --root /path/to/hydro/data
+python -m src.pretrain.train --bands landsat6 --root /path/to/hydro/data
 ```
 
-Loading a pretrained model as a classifier. Make sure you define MODEL.PRETRAINED as the path to your downloaded checkpoint on your config like below:
+Checkpoints save `teacher_encoder` (the artifact to keep) and the full student each epoch. See `src/pretrain/train.py --help` for the schedule knobs (teacher temperature warmup, EMA momentum, crops, lr).
 
-```yaml
-MODEL:
-  TYPE: swinv2
-  NAME: hydro_simmim_pretrain
-  PRETRAINED: checkpoints/ckpt_epoch_130.pth```
-```
-
-Load the checkpoint as a classifier like so
+**Legacy Swin v2 checkpoints.** The released SimMIM-pretrained Swin v2 encoders can still be loaded for baselines:
 
 ```python
-import torch
-from src.model import swin_v2
+from src.models import swin_v2
 
-config_path = "checkpoints/hydro_simmim_pretrain_swinv2_base_img256_window16_800ep.yaml"
-model, transforms, config = swin_v2(config_path)
+model, transforms, config = swin_v2("checkpoints/swin-v2-msi/config.yaml")
 ```
 
-Some helper methods are provided with the model for different use cases
+Some helper methods are provided with the Swin model for different use cases
 
 ```python
 import torch
@@ -111,13 +110,13 @@ for i, f in enumerate(features):
 """
 ```
 
-An example notebook with this code is available at `embed.ipynb`.
-
 ### Evaluation
 
-We plan to evaluate the model on a few bathymetry, hydrology, and other benchmark datasets. This repo currently contains dataset code for evaluating on the [Marine Debris Archive (MARIDA)](https://marine-debris.github.io/) dataset which is in progress.
+Dataset and datamodule code is included for MADOS, [MARIDA](https://marine-debris.github.io/), SWED, Earth Surface Water, MagicBathyNet, and Ships-S2-AIS (`src/datasets/`), with hydra configs under `configs/<dataset>/`. `train.py` / `test.py` run a segmentation task from a config:
 
-See the train.py script for an example.
+```bash
+python train.py --config configs/swed/hydro_msi.yaml
+```
 
 ### Cite
 
