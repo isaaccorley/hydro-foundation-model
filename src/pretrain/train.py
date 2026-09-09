@@ -16,6 +16,7 @@ no Gram anchoring (DINOv3 only uses it as a late refinement of the 7B; distilled
 
 import argparse
 import copy
+import glob
 import math
 import os
 import time
@@ -113,18 +114,38 @@ def set_backbone_trainable(student: MultiCropWrapper, trainable: bool) -> None:
         p.requires_grad_(trainable)
 
 
-def save_checkpoint(path, teacher, student, args, norm_info, in_chans, step):
-    torch.save(
-        {
-            "teacher_encoder": teacher.encoder.state_dict(),
-            "student": student.state_dict(),
-            "args": vars(args),
-            "step": step,
-            "norm": norm_info,
-            "encoder": {"timm_model": f"vit_large_patch16_dinov3.{args.variant}", "in_chans": in_chans, "img_size": IMG_SIZE},
-        },
-        path,
-    )
+def save_checkpoint(path, teacher, student, optimizer, loss_fn, args, norm_info, in_chans, step):
+    state = {
+        "teacher_encoder": teacher.encoder.state_dict(),
+        "teacher_head": teacher.head.state_dict(),
+        "student": student.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "loss_center": loss_fn.center,
+        "args": vars(args),
+        "step": step,
+        "norm": norm_info,
+        "encoder": {"timm_model": f"vit_large_patch16_dinov3.{args.variant}", "in_chans": in_chans, "img_size": IMG_SIZE},
+    }
+    torch.save(state, path)
+    torch.save(state, os.path.join(os.path.dirname(path), "last.pt"))
+
+
+def load_checkpoint(path, teacher, student, optimizer, loss_fn, device) -> int:
+    ckpt = torch.load(path, map_location=device, weights_only=False)
+    student.load_state_dict(ckpt["student"])
+    teacher.encoder.load_state_dict(ckpt["teacher_encoder"])
+    if "teacher_head" in ckpt:
+        teacher.head.load_state_dict(ckpt["teacher_head"])
+    else:  # older checkpoints: EMA is ~1 by then, so the student head is the closest stand-in
+        teacher.head.load_state_dict(student.head.state_dict())
+    if "optimizer" in ckpt:
+        optimizer.load_state_dict(ckpt["optimizer"])
+    else:
+        print("resume: checkpoint has no optimizer state, AdamW moments start fresh", flush=True)
+    if "loss_center" in ckpt:
+        loss_fn.center.copy_(ckpt["loss_center"].to(device))
+    print(f"resumed from {path} at step {ckpt['step']}", flush=True)
+    return int(ckpt["step"])
 
 
 def main() -> None:
@@ -166,6 +187,8 @@ def main() -> None:
     ap.add_argument("--output-dir", default="output/dino")
     ap.add_argument("--log-every", type=int, default=20)
     ap.add_argument("--save-every", type=int, default=2500)
+    ap.add_argument("--resume", default=None,
+                    help="checkpoint path, or 'auto' to continue from <output-dir>/last.pt if it exists")
     ap.add_argument("--limit", type=int, default=0, help="cap dataset size for a smoke test")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
@@ -225,16 +248,32 @@ def main() -> None:
         flush=True,
     )
 
-    set_backbone_trainable(student, False)
-    step, micro, t0 = 0, 0, time.time()
+    step = 0
+    resume_path = args.resume
+    if args.resume == "auto":
+        last = os.path.join(args.output_dir, "last.pt")
+        steps = sorted(
+            glob.glob(os.path.join(args.output_dir, f"{args.bands}_step*.pt")),
+            key=lambda p: int(p.rsplit("step", 1)[1][:-3]),
+        )
+        resume_path = last if os.path.exists(last) else (steps[-1] if steps else None)
+    if resume_path and os.path.exists(resume_path):
+        step = load_checkpoint(resume_path, teacher, student, optimizer, loss_fn, args.device)
+    elif args.resume:
+        print(f"resume: {resume_path} not found, starting from scratch", flush=True)
+
+    set_backbone_trainable(student, step >= args.freeze_backbone_steps)
+    unfrozen = step >= args.freeze_backbone_steps
+    micro, t0, step0 = 0, time.time(), step
     optimizer.zero_grad(set_to_none=True)
     student.train()
     while step < total_steps:
         for crops in loader:
             if step >= total_steps:
                 break
-            if step == args.freeze_backbone_steps and micro % args.accum_steps == 0:
+            if not unfrozen and step >= args.freeze_backbone_steps and micro % args.accum_steps == 0:
                 set_backbone_trainable(student, True)
+                unfrozen = True
                 print(f"step={step} backbone unfrozen", flush=True)
             crops = [c.to(args.device, non_blocking=True) for c in crops]
 
@@ -267,17 +306,17 @@ def main() -> None:
                 print(
                     f"step={step} loss={loss.item():.4f} lr={lr_sched[step]:.2e} ramp={ramp:.2f} "
                     f"ttemp={temp_sched[step]:.3f} mom={mom_sched[step]:.4f} "
-                    f"{elapsed / max(step, 1):.2f}s/step",
+                    f"{elapsed / max(step - step0, 1):.2f}s/step",
                     flush=True,
                 )
             step += 1
             if step % args.save_every == 0 or step == total_steps:
                 path = os.path.join(args.output_dir, f"{args.bands}_step{step}.pt")
-                save_checkpoint(path, teacher, student, args, norm_info, in_chans, step)
+                save_checkpoint(path, teacher, student, optimizer, loss_fn, args, norm_info, in_chans, step)
                 print(f"saved {path}", flush=True)
 
     final = os.path.join(args.output_dir, f"{args.bands}_final.pt")
-    save_checkpoint(final, teacher, student, args, norm_info, in_chans, step)
+    save_checkpoint(final, teacher, student, optimizer, loss_fn, args, norm_info, in_chans, step)
     print(f"done in {(time.time() - t0) / 3600:.2f}h, saved {final}", flush=True)
 
 

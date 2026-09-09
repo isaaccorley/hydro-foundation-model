@@ -7,7 +7,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=48G
-#SBATCH --time=24:00:00
+#SBATCH --time=36:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
@@ -31,4 +31,5 @@ $PY -m src.pretrain.train \
   --steps 15000 --batch-size 32 --accum-steps 8 \
   --freeze-backbone-steps 6000 --backbone-warmup-steps 1000 --warmup-steps 2000 \
   --workers "$SLURM_CPUS_PER_TASK" \
-  --output-dir "output/dino/$PRESET"
+  --output-dir "output/dino/$PRESET" \
+  --resume auto
