@@ -6,16 +6,12 @@
 # --------------------------------------------------------
 
 from .swin_transformer_v2 import SwinTransformerV2
-from .simmim import build_simmim
 
 
-def build_model(config, is_pretrain=False):
+def build_model(config):
     model_type = config.MODEL.TYPE
 
-    if is_pretrain:
-        model = build_simmim(config)
-        return model
-    elif model_type == "swinv2":
+    if model_type == "swinv2":
         model = SwinTransformerV2(
             img_size=config.DATA.IMG_SIZE,
             patch_size=config.MODEL.SWINV2.PATCH_SIZE,

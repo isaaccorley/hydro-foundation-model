@@ -2,6 +2,7 @@ git+https://github.com/microsoft/torchgeo#egg=torchgeo[all]
 timm>=1.0.20
 huggingface_hub
 safetensors
+yacs
 ruff
 scipy
 mlflow

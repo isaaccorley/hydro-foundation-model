@@ -6,8 +6,8 @@ import torch
 import torchvision.transforms as T
 
 from .build import build_model
-from ..pretrain.config import get_config
-from ..pretrain.utils import load_pretrained, load_checkpoint
+from .swin_config import get_config
+from .swin_utils import load_pretrained
 
 
 MEAN = torch.tensor([340.76769064, 429.9430203, 614.21682446, 590.23569706, 950.68368468, 1792.46290469, 2075.46795189, 2218.94553375, 2266.46036911, 2246.0605464, 1594.42694882, 1009.32729131])
@@ -37,23 +37,8 @@ def swin_v2(config_path):
     args = Namespace(cfg=config_path, opts=None)
     cfg = get_config(args)
 
-    model = build_model(cfg, is_pretrain=False)
+    model = build_model(cfg)
     load_pretrained(cfg, model, logger)
-
-    tfrms = transforms(cfg)
-
-    return model, tfrms, cfg
-
-
-def simmim(config_path):
-    logger = logging.getLogger()
-    os.environ["LOCAL_RANK"] = "-1"
-
-    args = Namespace(cfg=config_path, opts=None)
-    cfg = get_config(args)
-
-    model = build_model(cfg, is_pretrain=True)
-    _ = load_checkpoint(config=cfg, model=model, logger=logger)
 
     tfrms = transforms(cfg)
 
