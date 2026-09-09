@@ -33,11 +33,16 @@ def inflate_patch_embed(proj: nn.Conv2d, in_chans: int, rgb_indices=RGB_BAND_IND
         stride=proj.stride,
         bias=proj.bias is not None,
     )
+    # Same recipe as Meta's dinov3/utils/expand_patch_embed.py (FINO): new channels get the
+    # mean RGB filter and the whole weight is scaled by C_old / C_new so the per-patch activation
+    # magnitude matches the original. Only difference: RGB filters go to the target's actual
+    # R/G/B band positions instead of channels 0-2.
     with torch.no_grad():
-        mean_w = proj.weight.mean(dim=1, keepdim=True) * (proj.in_channels / in_chans)
+        mean_w = proj.weight.mean(dim=1, keepdim=True)
         new_proj.weight.copy_(mean_w.repeat(1, in_chans, 1, 1))
         for new_ch, old_ch in zip(rgb_indices, range(proj.in_channels)):
             new_proj.weight[:, new_ch] = proj.weight[:, old_ch]
+        new_proj.weight.mul_(proj.in_channels / in_chans)
         if proj.bias is not None:
             new_proj.bias.copy_(proj.bias)
     return new_proj
