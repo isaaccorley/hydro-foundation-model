@@ -1,15 +1,17 @@
 """DINO pretraining of DINOv3 ViT-L/16 on the Hydro water dataset, initialized from DINOv3-SAT.
 
-Two runs, same recipe, different `--bands`:
+Three runs, same recipe, different `--bands`:
 
-    python -m src.pretrain.train --bands rgb --root ~/github/hydroloc/data_jpg
-    python -m src.pretrain.train --bands all --root ~/github/hydroloc/data
+    python -m src.pretrain.train --bands rgb      --root ~/github/hydroloc/data_jpg
+    python -m src.pretrain.train --bands landsat6 --root ~/github/hydroloc/data
+    python -m src.pretrain.train --bands all      --root ~/github/hydroloc/data
 
-Recipe (Caron et al. 2021 / Oquab et al. 2023, scaled down for ~106k images):
-  student/teacher pair, teacher = EMA of student (cosine momentum -> 1.0), teacher sees the 2
-  global crops, student sees global + local crops, cross-entropy against the teacher's
-  centered + sharpened softmax, teacher-temp warmup, lr warmup + cosine decay, grad clipping,
-  and the prototype layer frozen for the first epoch.
+Recipe follows Meta's DINOv3 -> satellite adaptation reference (FINO, `vitl16_fmow_guided.yaml`),
+minus iBOT and the metadata guides: student and teacher both start from the pretrained encoder;
+stage 1 keeps the backbone frozen while the freshly initialized DINO head trains; stage 2
+unfreezes the backbone with a linear LR ramp. Constant LR after warmup, layerwise LR decay,
+reduced patch-embed LR, frozen cls/register tokens, EMA teacher, teacher-temp warmup, grad clip,
+no Gram anchoring (DINOv3 only uses it as a late refinement of the 7B; distilled models skip it).
 """
 
 import argparse
@@ -25,14 +27,7 @@ from torch.utils.data import DataLoader
 
 from src.pretrain.augment import MultiCropTransform, multicrop_collate, rgb_photometric
 from src.pretrain.data import MSIHydroDataset, RGBHydroDataset
-from src.pretrain.dino import (
-    DINOHead,
-    DINOLoss,
-    MultiCropWrapper,
-    cosine_schedule,
-    teacher_temp_schedule,
-    update_teacher,
-)
+from src.pretrain.dino import DINOHead, DINOLoss, MultiCropWrapper, cosine_schedule, update_teacher
 from src.pretrain.model import build_encoder
 
 IMG_SIZE = 256
@@ -75,6 +70,63 @@ def build_dataset(args):
     return ds, norm_info
 
 
+def param_groups(student: MultiCropWrapper, args) -> list[dict]:
+    """Head vs backbone groups; backbone gets layerwise LR decay and a patch-embed multiplier.
+
+    1-D params and biases get no weight decay (DINO convention). cls/register tokens are frozen.
+    """
+    enc = student.encoder
+    n_blocks = len(enc.blocks)
+    groups = []
+
+    def add(params, lr_scale, backbone):
+        reg = [p for n, p in params if p.ndim > 1 and not n.endswith(".bias")]
+        noreg = [p for n, p in params if not (p.ndim > 1 and not n.endswith(".bias"))]
+        if reg:
+            groups.append({"params": reg, "lr_scale": lr_scale, "weight_decay": args.weight_decay, "backbone": backbone})
+        if noreg:
+            groups.append({"params": noreg, "lr_scale": lr_scale, "weight_decay": 0.0, "backbone": backbone})
+
+    add(list(student.head.named_parameters()), 1.0, backbone=False)
+
+    for name in ("cls_token", "reg_token"):
+        tok = getattr(enc, name, None)
+        if tok is not None:
+            tok.requires_grad_(False)
+
+    decay = args.layerwise_decay
+    add(list(enc.patch_embed.named_parameters()), decay ** (n_blocks + 1) * args.patch_embed_lr_mult, backbone=True)
+    for i, blk in enumerate(enc.blocks):
+        add(list(blk.named_parameters()), decay ** (n_blocks - i), backbone=True)
+    rest = [
+        (n, p) for n, p in enc.named_parameters()
+        if not n.startswith(("patch_embed.", "blocks.", "cls_token", "reg_token"))
+    ]
+    add(rest, 1.0, backbone=True)
+    return groups
+
+
+def set_backbone_trainable(student: MultiCropWrapper, trainable: bool) -> None:
+    for n, p in student.encoder.named_parameters():
+        if n.startswith(("cls_token", "reg_token")):
+            continue
+        p.requires_grad_(trainable)
+
+
+def save_checkpoint(path, teacher, student, args, norm_info, in_chans, step):
+    torch.save(
+        {
+            "teacher_encoder": teacher.encoder.state_dict(),
+            "student": student.state_dict(),
+            "args": vars(args),
+            "step": step,
+            "norm": norm_info,
+            "encoder": {"timm_model": f"vit_large_patch16_dinov3.{args.variant}", "in_chans": in_chans, "img_size": IMG_SIZE},
+        },
+        path,
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bands", choices=("rgb", *BAND_PRESETS), required=True)
@@ -84,26 +136,36 @@ def main() -> None:
                     help="MSI z-score stats: median/MAD (robust) or mean/std (plain); see src/pretrain/stats.py")
     ap.add_argument("--clamp", type=float, nargs=2, default=(-5.0, 15.0), metavar=("LO", "HI"),
                     help="clamp normalized MSI values; pass 'nan nan' to disable")
-    ap.add_argument("--epochs", type=int, default=5)
+    # schedule (optimizer steps)
+    ap.add_argument("--steps", type=int, default=15000, help="total optimizer steps")
     ap.add_argument("--batch-size", type=int, default=32, help="per forward pass")
-    ap.add_argument("--accum-steps", type=int, default=4, help="gradient accumulation; effective batch = batch-size * accum-steps")
+    ap.add_argument("--accum-steps", type=int, default=8, help="effective batch = batch-size * accum-steps")
     ap.add_argument("--amp", default="bf16", choices=("bf16", "none"), help="autocast dtype on cuda")
-    ap.add_argument("--lr", type=float, default=5e-5, help="peak lr after warmup")
-    ap.add_argument("--warmup-epochs", type=int, default=1)
+    ap.add_argument("--lr", type=float, default=5e-5, help="peak lr (heads and full-scale backbone groups)")
+    ap.add_argument("--lr-schedule", default="constant", choices=("constant", "cosine"))
+    ap.add_argument("--warmup-steps", type=int, default=2000)
+    ap.add_argument("--freeze-backbone-steps", type=int, default=6000, help="stage 1: heads train, backbone frozen")
+    ap.add_argument("--backbone-warmup-steps", type=int, default=1000, help="stage 2: linear LR ramp after unfreeze")
+    ap.add_argument("--freeze-last-layer-steps", type=int, default=450, help="freeze DINO prototype layer")
     ap.add_argument("--weight-decay", type=float, default=0.04)
     ap.add_argument("--clip-grad", type=float, default=3.0)
+    ap.add_argument("--layerwise-decay", type=float, default=0.9)
+    ap.add_argument("--patch-embed-lr-mult", type=float, default=0.2)
+    ap.add_argument("--drop-path", type=float, default=0.1)
+    # dino
     ap.add_argument("--out-dim", type=int, default=8192, help="DINO prototypes")
     ap.add_argument("--n-global", type=int, default=2)
-    ap.add_argument("--n-local", type=int, default=6)
+    ap.add_argument("--n-local", type=int, default=8)
     ap.add_argument("--local-size", type=int, default=96)
     ap.add_argument("--teacher-temp", type=float, default=0.07)
     ap.add_argument("--warmup-teacher-temp", type=float, default=0.04)
-    ap.add_argument("--warmup-teacher-temp-epochs", type=int, default=2)
-    ap.add_argument("--momentum-teacher", type=float, default=0.996)
-    ap.add_argument("--freeze-last-layer-epochs", type=int, default=1)
-    ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--output-dir", default="checkpoints/dino-hydro")
+    ap.add_argument("--warmup-teacher-temp-steps", type=int, default=3000)
+    ap.add_argument("--momentum-teacher", type=float, default=0.994)
+    # io
+    ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--output-dir", default="output/dino")
     ap.add_argument("--log-every", type=int, default=20)
+    ap.add_argument("--save-every", type=int, default=2500)
     ap.add_argument("--limit", type=int, default=0, help="cap dataset size for a smoke test")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
@@ -121,45 +183,59 @@ def main() -> None:
     loader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers,
         pin_memory=True, drop_last=True, collate_fn=multicrop_collate,
+        persistent_workers=args.workers > 0,
     )
 
     encoder = build_encoder(
-        variant=args.variant, in_chans=in_chans, img_size=IMG_SIZE, rgb_indices=rgb_indices
+        variant=args.variant, in_chans=in_chans, img_size=IMG_SIZE, rgb_indices=rgb_indices,
+        drop_path_rate=args.drop_path,
     )
     student = MultiCropWrapper(encoder, DINOHead(encoder.embed_dim, args.out_dim)).to(args.device)
-    teacher = copy.deepcopy(student)
+    teacher = copy.deepcopy(student).eval()  # eval: no drop-path noise in targets
     for p in teacher.parameters():
-        p.requires_grad = False
+        p.requires_grad_(False)
 
+    groups = param_groups(student, args)
+    optimizer = torch.optim.AdamW(groups, lr=args.lr, weight_decay=args.weight_decay)
     loss_fn = DINOLoss(args.out_dim).to(args.device)
-    params = [p for p in student.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(params, lr=args.lr, weight_decay=args.weight_decay)
+    trainable = [p for g in groups for p in g["params"]]
 
-    # Schedules are indexed by optimizer step (one per `accum_steps` micro-batches).
-    steps_per_epoch = len(loader) // args.accum_steps
-    total_steps = args.epochs * steps_per_epoch
-    lr_sched = cosine_schedule(args.lr, 1e-6, total_steps, warmup_steps=args.warmup_epochs * steps_per_epoch)
+    total_steps = args.steps
+    lr_final = args.lr if args.lr_schedule == "constant" else 1e-6
+    lr_sched = cosine_schedule(args.lr, lr_final, total_steps, warmup_steps=args.warmup_steps)
     mom_sched = cosine_schedule(args.momentum_teacher, 1.0, total_steps)
-    temp_sched = teacher_temp_schedule(
-        args.warmup_teacher_temp, args.teacher_temp, args.warmup_teacher_temp_epochs,
-        args.epochs, steps_per_epoch,
-    )
+    temp_sched = [
+        args.warmup_teacher_temp + (args.teacher_temp - args.warmup_teacher_temp) * min(1.0, s / max(args.warmup_teacher_temp_steps, 1))
+        for s in range(total_steps)
+    ]
+
+    def backbone_ramp(step: int) -> float:
+        if step < args.freeze_backbone_steps:
+            return 0.0
+        return min(1.0, (step - args.freeze_backbone_steps + 1) / max(args.backbone_warmup_steps, 1))
 
     use_amp = args.amp == "bf16" and args.device.startswith("cuda")
     autocast = torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp)
 
+    steps_per_epoch = len(loader) // args.accum_steps
     print(
-        f"bands={args.bands} variant={args.variant} n={len(dataset)} "
-        f"effective_batch={args.batch_size * args.accum_steps} steps/epoch={steps_per_epoch} amp={use_amp}"
+        f"bands={args.bands} variant={args.variant} n={len(dataset)} in_chans={in_chans} "
+        f"effective_batch={args.batch_size * args.accum_steps} steps={total_steps} "
+        f"(~{total_steps / max(steps_per_epoch, 1):.1f} epochs) freeze_backbone={args.freeze_backbone_steps} amp={use_amp}",
+        flush=True,
     )
-    step = 0
-    for epoch in range(args.epochs):
-        student.train()
-        t0 = time.time()
-        optimizer.zero_grad(set_to_none=True)
-        for micro, crops in enumerate(loader, 1):
+
+    set_backbone_trainable(student, False)
+    step, micro, t0 = 0, 0, time.time()
+    optimizer.zero_grad(set_to_none=True)
+    student.train()
+    while step < total_steps:
+        for crops in loader:
             if step >= total_steps:
                 break
+            if step == args.freeze_backbone_steps and micro % args.accum_steps == 0:
+                set_backbone_trainable(student, True)
+                print(f"step={step} backbone unfrozen", flush=True)
             crops = [c.to(args.device, non_blocking=True) for c in crops]
 
             with autocast:
@@ -170,15 +246,16 @@ def main() -> None:
                     student_output.float(), teacher_output.float(), len(crops), args.n_global, temp_sched[step]
                 )
             (loss / args.accum_steps).backward()
-
+            micro += 1
             if micro % args.accum_steps != 0:
                 continue
 
+            ramp = backbone_ramp(step)
             for g in optimizer.param_groups:
-                g["lr"] = lr_sched[step]
+                g["lr"] = lr_sched[step] * g["lr_scale"] * (ramp if g["backbone"] else 1.0)
             if args.clip_grad > 0:
-                torch.nn.utils.clip_grad_norm_(params, args.clip_grad)
-            if epoch < args.freeze_last_layer_epochs:
+                torch.nn.utils.clip_grad_norm_(trainable, args.clip_grad)
+            if step < args.freeze_last_layer_steps:
                 for p in student.head.last_layer.parameters():
                     p.grad = None
             optimizer.step()
@@ -186,24 +263,22 @@ def main() -> None:
             update_teacher(student, teacher, mom_sched[step])
 
             if step % args.log_every == 0:
+                elapsed = time.time() - t0
                 print(
-                    f"epoch={epoch} step={step} loss={loss.item():.4f} "
-                    f"lr={lr_sched[step]:.2e} ttemp={temp_sched[step]:.3f} mom={mom_sched[step]:.4f}"
+                    f"step={step} loss={loss.item():.4f} lr={lr_sched[step]:.2e} ramp={ramp:.2f} "
+                    f"ttemp={temp_sched[step]:.3f} mom={mom_sched[step]:.4f} "
+                    f"{elapsed / max(step, 1):.2f}s/step",
+                    flush=True,
                 )
             step += 1
+            if step % args.save_every == 0 or step == total_steps:
+                path = os.path.join(args.output_dir, f"{args.bands}_step{step}.pt")
+                save_checkpoint(path, teacher, student, args, norm_info, in_chans, step)
+                print(f"saved {path}", flush=True)
 
-        ckpt_path = os.path.join(args.output_dir, f"{args.bands}_epoch{epoch}.pt")
-        torch.save(
-            {
-                "teacher_encoder": teacher.encoder.state_dict(),
-                "student": student.state_dict(),
-                "args": vars(args),
-                "norm": norm_info,
-                "encoder": {"timm_model": f"vit_large_patch16_dinov3.{args.variant}", "in_chans": in_chans, "img_size": IMG_SIZE},
-            },
-            ckpt_path,
-        )
-        print(f"epoch={epoch} done in {time.time() - t0:.1f}s, saved {ckpt_path}")
+    final = os.path.join(args.output_dir, f"{args.bands}_final.pt")
+    save_checkpoint(final, teacher, student, args, norm_info, in_chans, step)
+    print(f"done in {(time.time() - t0) / 3600:.2f}h, saved {final}", flush=True)
 
 
 if __name__ == "__main__":

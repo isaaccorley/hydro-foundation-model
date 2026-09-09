@@ -70,7 +70,7 @@ python -m src.pretrain.train --bands all      --root /path/to/hydro/data
 python -m src.pretrain.train --bands landsat6 --root /path/to/hydro/data
 ```
 
-Checkpoints save `teacher_encoder` (the artifact to keep) and the full student each epoch. See `src/pretrain/train.py --help` for the schedule knobs (teacher temperature warmup, EMA momentum, crops, lr).
+The schedule follows Meta's DINOv3 → satellite adaptation reference (FINO, `vitl16_fmow_guided.yaml`): student and teacher both start from DINOv3-SAT; stage 1 keeps the backbone frozen while the fresh DINO head trains (`--freeze-backbone-steps`), stage 2 unfreezes it with a linear LR ramp; constant LR after warmup, layerwise LR decay, reduced patch-embed LR, frozen cls/register tokens, no Gram anchoring. Runs are step-based (`--steps`, default 15k at effective batch 256). Checkpoints (`output/dino/<preset>/`) save `teacher_encoder` (the artifact to keep), the full student, and the exact normalization used (`norm`: stats, bands, clamp, offset convention) so downstream users can't apply the wrong statistics. `scripts/pretrain_dino.sbatch` + `scripts/submit_dino_chain.sh` run the three presets sequentially on one GPU each.
 
 **Legacy Swin v2 checkpoints.** The released SimMIM-pretrained Swin v2 encoders can still be loaded for baselines:
 

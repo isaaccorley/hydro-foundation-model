@@ -53,6 +53,7 @@ def build_encoder(
     in_chans: int = 3,
     img_size: int = 256,
     rgb_indices=RGB_BAND_INDICES,
+    drop_path_rate: float = 0.0,
 ) -> nn.Module:
     """Load a pretrained DINOv3 ViT-L/16 (timm) and optionally inflate it to `in_chans`.
 
@@ -63,7 +64,9 @@ def build_encoder(
     (B, embed_dim) that the DINO projection head consumes.
     """
     name = f"vit_large_patch16_dinov3.{variant}"
-    encoder = timm.create_model(name, pretrained=True, num_classes=0, img_size=img_size)
+    encoder = timm.create_model(
+        name, pretrained=True, num_classes=0, img_size=img_size, drop_path_rate=drop_path_rate
+    )
     if in_chans != encoder.patch_embed.proj.in_channels:
         encoder.patch_embed.proj = inflate_patch_embed(encoder.patch_embed.proj, in_chans, rgb_indices)
         encoder.in_chans = in_chans
