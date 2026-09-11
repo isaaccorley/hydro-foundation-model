@@ -8,9 +8,8 @@ mkdir -p logs
 # From measured runs (sacct TotalCPU/Elapsed, MaxRSS + headroom):
 #   rgb      2.7 cores busy, 32G RSS
 #   landsat6 5.4 cores busy, ~50G RSS summed over loader workers
-#   all      ~10 cores busy but NFS-bound (16 workers at ~65%, 12-band tifs, ~200 MB/s of
-#            small reads); more CPUs won't help — staging the tifs to node-local /tmp would.
-declare -A MEM=([rgb]=40G [landsat6]=56G [all]=64G)
+#   all      6.7 cores busy (H100, fp16 crops), 67G RSS summed over loader workers
+declare -A MEM=([rgb]=40G [landsat6]=56G [all]=72G)
 declare -A CPUS=([rgb]=6 [landsat6]=8 [all]=16)
 
 # EXCLUDE=rails11 ./scripts/submit_dino_chain.sh  -> skip a node that showed unexplained
