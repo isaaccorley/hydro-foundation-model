@@ -13,11 +13,16 @@ mkdir -p logs
 declare -A MEM=([rgb]=40G [landsat6]=56G [all]=64G)
 declare -A CPUS=([rgb]=6 [landsat6]=8 [all]=16)
 
+# EXCLUDE=rails11 ./scripts/submit_dino_chain.sh  -> skip a node that showed unexplained
+# step stalls (GPU idle, all our threads asleep) while the same pipeline ran clean elsewhere.
+excl=""
+[ -n "${EXCLUDE:-}" ] && excl="--exclude=$EXCLUDE"
+
 prev=""
 for preset in rgb landsat6 all; do
   dep=""
   [ -n "$prev" ] && dep="--dependency=afterany:$prev"
-  jid=$(PRESET=$preset sbatch --parsable $dep -J "dino_$preset" --mem="${MEM[$preset]}" --cpus-per-task="${CPUS[$preset]}" scripts/pretrain_dino.sbatch)
+  jid=$(PRESET=$preset sbatch --parsable $dep $excl -J "dino_$preset" --mem="${MEM[$preset]}" --cpus-per-task="${CPUS[$preset]}" scripts/pretrain_dino.sbatch)
   echo "$preset -> job $jid ${dep:+(after $prev)}"
   prev=$jid
 done
