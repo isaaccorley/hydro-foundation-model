@@ -12,10 +12,9 @@
 #SBATCH --error=logs/%x_%j.err
 
 # Usage: PRESET=rgb|landsat6|all sbatch -J dino_$PRESET scripts/pretrain_dino.sbatch
-# One GPU per run; 16 CPUs feed the multi-crop DataLoader (10 crops/image off NFS tifs).
-# First run is unmeasured: re-size --mem / --cpus-per-task from
-#   sacct -j <id> --format=Elapsed,TotalCPU,MaxRSS
-# and edit this file so the next submission does not repeat the over-ask.
+# Prefer scripts/submit_dino_chain.sh, which passes measured per-preset --mem/--cpus-per-task.
+# One GPU per run; CPUs feed the multi-crop DataLoader (10 crops/image). Measured: rgb 2.7
+# cores / 32G, landsat6 5.4 cores / ~50G summed RSS (sacct TotalCPU/Elapsed, MaxRSS).
 
 set -euo pipefail
 : "${PRESET:?set PRESET=rgb|landsat6|all}"
