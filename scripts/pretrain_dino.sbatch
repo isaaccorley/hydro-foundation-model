@@ -19,7 +19,21 @@
 set -euo pipefail
 : "${PRESET:?set PRESET=rgb|landsat6|all}"
 DATA=/u/isaaccorley/github/hydroloc
-if [ "$PRESET" = "rgb" ]; then ROOT="$DATA/data_jpg"; else ROOT="$DATA/data"; fi
+if [ "$PRESET" = "rgb" ]; then SRC="$DATA/data_jpg"; else SRC="$DATA/data"; fi
+
+# Stage the patch set to node-local scratch: the 12-band loader was NFS-bound at ~200 MB/s
+# of small-file reads (16 workers idling at ~65%). 106k files; parallel cp keeps latency down.
+STAGE="/tmp/${SLURM_JOB_ID}/$(basename "$SRC")"
+trap 'rm -rf "/tmp/${SLURM_JOB_ID}"' EXIT
+mkdir -p "$STAGE"
+echo "staging $SRC -> $STAGE"; t0=$(date +%s)
+if find "$SRC" -maxdepth 1 -type f -name 'patch_*' -print0 \
+     | xargs -0 -P "$SLURM_CPUS_PER_TASK" -n 500 cp -t "$STAGE" \
+   && [ "$(ls "$STAGE" | wc -l)" -eq "$(ls "$SRC" | wc -l)" ]; then
+  ROOT="$STAGE"; echo "staged $(ls "$STAGE" | wc -l) files in $(( $(date +%s) - t0 ))s ($(du -sh "$STAGE" | cut -f1))"
+else
+  ROOT="$SRC"; echo "WARNING: staging failed or incomplete, falling back to NFS root $SRC"
+fi
 
 cd "$SLURM_SUBMIT_DIR"
 PY=/sw/pkgs/anaconda/anaconda3/bin/python3
