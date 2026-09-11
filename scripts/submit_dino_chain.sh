@@ -8,9 +8,10 @@ mkdir -p logs
 # From measured runs (sacct TotalCPU/Elapsed, MaxRSS + headroom):
 #   rgb      2.7 cores busy, 32G RSS
 #   landsat6 5.4 cores busy, ~50G RSS summed over loader workers
-#   all      reads 2x the bands of landsat6 (unmeasured at time of writing)
+#   all      ~10 cores busy but NFS-bound (16 workers at ~65%, 12-band tifs, ~200 MB/s of
+#            small reads); more CPUs won't help — staging the tifs to node-local /tmp would.
 declare -A MEM=([rgb]=40G [landsat6]=56G [all]=64G)
-declare -A CPUS=([rgb]=6 [landsat6]=8 [all]=12)
+declare -A CPUS=([rgb]=6 [landsat6]=8 [all]=16)
 
 prev=""
 for preset in rgb landsat6 all; do
