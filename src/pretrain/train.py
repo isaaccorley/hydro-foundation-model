@@ -57,8 +57,11 @@ def build_dataset(args):
         return RGBHydroDataset(args.root, transform), norm_info
     band_indices, _ = BAND_PRESETS[args.bands]
     clamp = None if any(math.isnan(v) for v in args.clamp) else tuple(args.clamp)
+    # Crops leave the workers as float16: the pin-memory thread was the bottleneck on 12-band
+    # runs (~2.5 GB of float32 crops per step), not disk. bf16 autocast takes fp16 inputs as-is.
     ds = MSIHydroDataset(
-        args.root, MultiCropTransform(**crop_kwargs), band_indices=band_indices, norm=args.norm, clamp=clamp
+        args.root, MultiCropTransform(**crop_kwargs, finalize=lambda t: t.half()),
+        band_indices=band_indices, norm=args.norm, clamp=clamp,
     )
     norm_info = {
         "input": "Sentinel-2 L2A DN; reflectance = (DN - per-patch BOA offset) / 10000; zero DN = nodata -> 0 after z-score",
@@ -275,7 +278,7 @@ def main() -> None:
                 set_backbone_trainable(student, True)
                 unfrozen = True
                 print(f"step={step} backbone unfrozen", flush=True)
-            crops = [c.to(args.device, non_blocking=True) for c in crops]
+            crops = [c.to(args.device, non_blocking=True).float() for c in crops]  # fp16 on the wire, fp32 on device
 
             with autocast:
                 with torch.no_grad():
